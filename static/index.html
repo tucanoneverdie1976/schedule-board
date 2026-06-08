@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>일정 게시판</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Porcupine Schedule</p>
+          <h1>일정 게시판</h1>
+        </div>
+        <div class="status-strip" aria-live="polite">
+          <span id="apiStatus" class="status-dot"></span>
+          <span id="statusText">연결 확인 중</span>
+        </div>
+      </header>
+
+      <section class="layout">
+        <aside class="composer">
+          <form id="scheduleForm" class="panel">
+            <div class="panel-head">
+              <h2 id="formTitle">일정 추가</h2>
+              <button id="cancelEdit" class="icon-button hidden" type="button" title="수정 취소" aria-label="수정 취소">×</button>
+            </div>
+
+            <label>
+              <span>제목</span>
+              <input id="titleInput" name="title" autocomplete="off" required />
+            </label>
+
+            <div class="field-row">
+              <label>
+                <span>날짜</span>
+                <input id="dateInput" name="date" type="date" required />
+              </label>
+              <label>
+                <span>시간</span>
+                <input id="timeInput" name="time" type="time" />
+              </label>
+            </div>
+
+            <label>
+              <span>메모</span>
+              <textarea id="notesInput" name="notes" rows="4"></textarea>
+            </label>
+
+            <button id="saveButton" class="primary-button" type="submit">추가</button>
+          </form>
+
+          <form id="voiceForm" class="panel">
+            <div class="panel-head">
+              <h2>음성 문장 테스트</h2>
+            </div>
+            <label>
+              <span>명령문</span>
+              <input id="voiceInput" autocomplete="off" placeholder="오늘 3시 병원 예약해" />
+            </label>
+            <button class="secondary-button" type="submit">문장으로 추가</button>
+          </form>
+        </aside>
+
+        <section class="board">
+          <div class="board-head">
+            <div>
+              <p class="eyebrow" id="todayLabel">오늘</p>
+              <h2 id="boardTitle">전체 일정</h2>
+            </div>
+            <div class="filters" role="tablist" aria-label="일정 필터">
+              <button class="filter-button active" data-range="today" type="button">오늘</button>
+              <button class="filter-button" data-range="week" type="button">이번 주</button>
+              <button class="filter-button" data-range="all" type="button">전체</button>
+            </div>
+          </div>
+
+          <div class="summary-row" aria-live="polite">
+            <div>
+              <strong id="totalCount">0</strong>
+              <span>개 일정</span>
+            </div>
+            <div>
+              <strong id="openCount">0</strong>
+              <span>개 진행 중</span>
+            </div>
+            <button id="refreshButton" class="ghost-button" type="button">새로고침</button>
+          </div>
+
+          <div id="scheduleList" class="schedule-list"></div>
+        </section>
+      </section>
+    </main>
+
+    <template id="scheduleTemplate">
+      <article class="schedule-card">
+        <div class="card-main">
+          <button class="done-toggle" type="button" title="완료 전환" aria-label="완료 전환"></button>
+          <div class="card-copy">
+            <div class="card-time"></div>
+            <h3></h3>
+            <p class="card-notes"></p>
+          </div>
+        </div>
+        <div class="card-actions">
+          <button class="edit-button" type="button">수정</button>
+          <button class="delete-button" type="button">삭제</button>
+        </div>
+      </article>
+    </template>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
