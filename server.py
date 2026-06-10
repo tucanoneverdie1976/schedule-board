@@ -522,8 +522,31 @@ def normalize_match_text(text: str) -> str:
     return re.sub(r"[^0-9a-zA-Z가-힣]+", "", text).lower()
 
 
+def schedule_sort_key(item: dict[str, Any]) -> tuple[int, date, time, str, str]:
+    today = date.today()
+    try:
+        schedule_date = date.fromisoformat(str(item.get("date", "")).strip())
+    except ValueError:
+        schedule_date = date.max
+
+    raw_time = str(item.get("time", "")).strip()
+    try:
+        schedule_time = time.fromisoformat(raw_time) if raw_time else time.min
+    except ValueError:
+        schedule_time = time.max
+
+    past_bucket = 1 if schedule_date < today else 0
+    return (
+        past_bucket,
+        schedule_date,
+        schedule_time,
+        str(item.get("created_at", "")),
+        str(item.get("title", "")),
+    )
+
+
 def ordered_schedules(items: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
-    return list(read_schedules() if items is None else items)
+    return sorted(read_schedules() if items is None else items, key=schedule_sort_key)
 
 
 def parse_korean_order_number(value: str) -> int | None:
