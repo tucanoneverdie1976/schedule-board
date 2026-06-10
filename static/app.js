@@ -1,5 +1,4 @@
 const state = {
-  range: "today",
   items: [],
 };
 
@@ -23,12 +22,6 @@ const els = {
   marketList: document.querySelector("#marketList"),
   marketTemplate: document.querySelector("#marketTemplate"),
   marketUpdatedText: document.querySelector("#marketUpdatedText"),
-};
-
-const rangeTitles = {
-  today: "오늘 일정",
-  week: "이번 주 일정",
-  all: "전체 일정",
 };
 
 function formatDateLabel(value) {
@@ -75,7 +68,7 @@ async function request(path, options = {}) {
 
 async function loadSchedules() {
   try {
-    const payload = await request(`/api/schedules?range=${state.range}`);
+    const payload = await request("/api/schedules?range=all");
     state.items = payload.items || [];
     render();
     setStatus(true, "연결됨");
@@ -120,7 +113,7 @@ async function loadMarkets() {
 
 function render() {
   els.scheduleList.innerHTML = "";
-  els.boardTitle.textContent = rangeTitles[state.range];
+  els.boardTitle.textContent = "전체 일정";
   els.todayLabel.textContent = new Intl.DateTimeFormat("ko-KR", {
     year: "numeric",
     month: "long",
@@ -229,15 +222,6 @@ async function deleteSchedule(id) {
     setStatus(false, error.message);
   }
 }
-
-document.querySelectorAll(".filter-button").forEach((button) => {
-  button.addEventListener("click", async () => {
-    document.querySelectorAll(".filter-button").forEach((item) => item.classList.remove("active"));
-    button.classList.add("active");
-    state.range = button.dataset.range;
-    await loadSchedules();
-  });
-});
 
 els.refreshButton.addEventListener("click", loadSchedules);
 
