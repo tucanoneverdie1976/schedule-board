@@ -46,8 +46,7 @@ button {
 .board-head,
 .summary-row,
 .panel-head,
-.card-main,
-.card-actions {
+.card-main {
   display: flex;
   align-items: center;
 }
@@ -173,10 +172,8 @@ textarea:focus {
 
 .primary-button,
 .secondary-button,
-.ghost-button,
 .filter-button,
 .edit-button,
-.delete-button,
 .icon-button {
   min-height: 38px;
   border: 1px solid transparent;
@@ -202,18 +199,11 @@ textarea:focus {
   border-color: var(--line);
 }
 
-.ghost-button,
 .filter-button,
 .edit-button {
   background: #fff;
   border-color: var(--line);
   color: var(--ink);
-}
-
-.delete-button {
-  background: #fff5f1;
-  border-color: #f0c9b8;
-  color: var(--warn);
 }
 
 .icon-button {
@@ -259,7 +249,7 @@ textarea:focus {
 }
 
 .summary-row {
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 12px;
   min-height: 52px;
   padding: 10px 12px;
@@ -430,7 +420,7 @@ textarea:focus {
 
 .schedule-card {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr;
   gap: 12px;
   align-items: center;
   min-height: 92px;
@@ -475,20 +465,6 @@ textarea:focus {
   color: var(--muted);
 }
 
-.done-toggle {
-  flex: 0 0 auto;
-  width: 26px;
-  height: 26px;
-  border: 2px solid var(--accent);
-  border-radius: 7px;
-  background: #fff;
-}
-
-.schedule-card.done .done-toggle {
-  background: var(--accent);
-  box-shadow: inset 0 0 0 5px #fff;
-}
-
 .card-copy {
   min-width: 0;
 }
@@ -510,10 +486,6 @@ textarea:focus {
   margin: 5px 0 0;
   color: var(--muted);
   font-size: 0.92rem;
-}
-
-.card-actions {
-  gap: 8px;
 }
 
 .empty-state {
@@ -556,10 +528,6 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 
-  .card-actions {
-    justify-content: flex-end;
-  }
-
   .market-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -567,11 +535,6 @@ textarea:focus {
 
 @media (max-width: 520px) {
   .field-row {
-    grid-template-columns: 1fr;
-  }
-
-  .card-actions {
-    display: grid;
     grid-template-columns: 1fr;
   }
 

@@ -15,7 +15,6 @@ const els = {
   openCount: document.querySelector("#openCount"),
   boardTitle: document.querySelector("#boardTitle"),
   todayLabel: document.querySelector("#todayLabel"),
-  refreshButton: document.querySelector("#refreshButton"),
   newsList: document.querySelector("#newsList"),
   newsTemplate: document.querySelector("#newsTemplate"),
   newsUpdatedText: document.querySelector("#newsUpdatedText"),
@@ -143,8 +142,6 @@ function render() {
     notes.textContent = item.notes || (item.source === "voice" ? "음성으로 추가됨" : "");
     notes.hidden = !notes.textContent;
 
-    card.querySelector(".done-toggle").addEventListener("click", () => updateSchedule(item.id, { ...item, done: !item.done }));
-    card.querySelector(".delete-button").addEventListener("click", () => deleteSchedule(item.id));
     els.scheduleList.append(card);
   });
 }
@@ -202,29 +199,6 @@ function renderMarkets(items, updatedAt, errorText) {
     els.marketList.append(card);
   }
 }
-
-async function updateSchedule(id, payload) {
-  try {
-    await request(`/api/schedules/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(payload),
-    });
-    await loadSchedules();
-  } catch (error) {
-    setStatus(false, error.message);
-  }
-}
-
-async function deleteSchedule(id) {
-  try {
-    await request(`/api/schedules/${id}`, { method: "DELETE" });
-    await loadSchedules();
-  } catch (error) {
-    setStatus(false, error.message);
-  }
-}
-
-els.refreshButton.addEventListener("click", loadSchedules);
 
 loadSchedules();
 loadNews();
