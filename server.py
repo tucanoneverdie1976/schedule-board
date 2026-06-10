@@ -35,11 +35,12 @@ NEWS_FEED_URL = os.environ.get(
     "NEWS_FEED_URL",
     "https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko",
 )
-NEWS_LIMIT = int(os.environ.get("NEWS_LIMIT", "2"))
+NEWS_DISPLAY_LIMIT = int(os.environ.get("NEWS_DISPLAY_LIMIT", "2"))
+NEWS_POOL_LIMIT = int(os.environ.get("NEWS_POOL_LIMIT", "20"))
 NEWS_CACHE_SECONDS = int(os.environ.get("NEWS_CACHE_SECONDS", "60"))
 NEWS_FETCH_TIMEOUT_SECONDS = float(os.environ.get("NEWS_FETCH_TIMEOUT_SECONDS", "8"))
 NEWS_LOCK = threading.Lock()
-NEWS_CACHE: dict[str, Any] = {"items": [], "fetched_at": 0.0, "updated_at": "", "error": ""}
+NEWS_CACHE: dict[str, Any] = {"items": [], "fetched_at": 0.0, "updated_at": "", "error": "", "cursor": 0}
 
 ADD_ACTION_WORDS = (
     "예약해줘",
@@ -171,16 +172,35 @@ def parse_rss_items(xml_bytes: bytes, limit: int) -> list[dict[str, str]]:
     return items
 
 
+def rotate_news_items(items: list[dict[str, str]]) -> tuple[list[dict[str, str]], int]:
+    if not items:
+        return [], 0
+
+    limit = max(1, NEWS_DISPLAY_LIMIT)
+    with NEWS_LOCK:
+        cursor = int(NEWS_CACHE.get("cursor") or 0) % len(items)
+        selected = [items[(cursor + offset) % len(items)] for offset in range(min(limit, len(items)))]
+        NEWS_CACHE["cursor"] = (cursor + limit) % len(items)
+        next_cursor = int(NEWS_CACHE["cursor"])
+    return selected, next_cursor
+
+
 def fetch_news_items() -> dict[str, Any]:
     now_ts = datetime.now().timestamp()
     with NEWS_LOCK:
         cached_age = now_ts - float(NEWS_CACHE.get("fetched_at") or 0)
-        if NEWS_CACHE.get("items") and cached_age < NEWS_CACHE_SECONDS:
-            return {
-                "items": NEWS_CACHE["items"],
-                "updated_at": NEWS_CACHE.get("updated_at", ""),
-                "cached": True,
-            }
+        cached_items = list(NEWS_CACHE.get("items") or [])
+        cached_updated_at = str(NEWS_CACHE.get("updated_at") or "")
+        is_cache_fresh = bool(cached_items) and cached_age < NEWS_CACHE_SECONDS
+    if is_cache_fresh:
+        items, next_cursor = rotate_news_items(cached_items)
+        return {
+            "items": items,
+            "updated_at": cached_updated_at,
+            "pool_size": len(cached_items),
+            "next_cursor": next_cursor,
+            "cached": True,
+        }
 
     req = urllib.request.Request(
         NEWS_FEED_URL,
@@ -188,20 +208,32 @@ def fetch_news_items() -> dict[str, Any]:
     )
     try:
         with urllib.request.urlopen(req, timeout=NEWS_FETCH_TIMEOUT_SECONDS) as resp:
-            items = parse_rss_items(resp.read(), max(1, NEWS_LIMIT))
+            fetched_items = parse_rss_items(resp.read(), max(NEWS_DISPLAY_LIMIT, NEWS_POOL_LIMIT))
         updated_at = now_iso()
         with NEWS_LOCK:
-            NEWS_CACHE.update({"items": items, "fetched_at": now_ts, "updated_at": updated_at, "error": ""})
-        return {"items": items, "updated_at": updated_at, "cached": False}
+            NEWS_CACHE.update({"items": fetched_items, "fetched_at": now_ts, "updated_at": updated_at, "error": ""})
+        items, next_cursor = rotate_news_items(fetched_items)
+        return {
+            "items": items,
+            "updated_at": updated_at,
+            "pool_size": len(fetched_items),
+            "next_cursor": next_cursor,
+            "cached": False,
+        }
     except (OSError, urllib.error.URLError, ElementTree.ParseError) as exc:
         with NEWS_LOCK:
             NEWS_CACHE["error"] = str(exc)
-            return {
-                "items": NEWS_CACHE.get("items", []),
-                "updated_at": NEWS_CACHE.get("updated_at", ""),
-                "cached": True,
-                "error": str(exc),
-            }
+            cached_items = list(NEWS_CACHE.get("items") or [])
+            cached_updated_at = str(NEWS_CACHE.get("updated_at") or "")
+        items, next_cursor = rotate_news_items(cached_items)
+        return {
+            "items": items,
+            "updated_at": cached_updated_at,
+            "pool_size": len(cached_items),
+            "next_cursor": next_cursor,
+            "cached": True,
+            "error": str(exc),
+        }
 
 
 def normalize_schedule(payload: dict[str, Any], existing: dict[str, Any] | None = None) -> dict[str, Any]:
