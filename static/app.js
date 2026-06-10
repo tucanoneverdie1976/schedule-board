@@ -4,6 +4,8 @@ const state = {
   editingId: null,
 };
 
+const AUTO_REFRESH_MS = 30000;
+
 const els = {
   apiStatus: document.querySelector("#apiStatus"),
   statusText: document.querySelector("#statusText"),
@@ -194,12 +196,17 @@ async function addVoiceCommand(event) {
     return;
   }
   try {
-    await request("/api/voice-command", {
+    const result = await request("/api/voice-command", {
       method: "POST",
       body: JSON.stringify({ text }),
     });
     els.voiceInput.value = "";
     await loadSchedules();
+    if (result.action === "deleted") {
+      setStatus(true, "삭제됨");
+    } else if (result.action === "added") {
+      setStatus(true, "추가됨");
+    }
   } catch (error) {
     setStatus(false, error.message);
   }
@@ -221,4 +228,4 @@ els.cancelEdit.addEventListener("click", resetForm);
 
 resetForm();
 loadSchedules();
-setInterval(loadSchedules, 10000);
+setInterval(loadSchedules, AUTO_REFRESH_MS);

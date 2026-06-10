@@ -27,7 +27,7 @@ DATA_DIR = ROOT_DIR / "data"
 DATA_FILE = DATA_DIR / "schedules.json"
 DATA_LOCK = threading.Lock()
 
-ACTION_WORDS = (
+ADD_ACTION_WORDS = (
     "예약해줘",
     "예약해",
     "추가해줘",
@@ -38,6 +38,22 @@ ACTION_WORDS = (
     "잡아",
     "넣어줘",
     "넣어",
+)
+DELETE_ACTION_WORDS = (
+    "삭제해줘",
+    "삭제해",
+    "삭제",
+    "지워줘",
+    "지워",
+    "취소해줘",
+    "취소해",
+    "취소",
+    "빼줘",
+    "빼",
+)
+ACTION_WORDS = (
+    *ADD_ACTION_WORDS,
+    *DELETE_ACTION_WORDS,
     "일정",
     "예약",
 )
@@ -190,6 +206,10 @@ def clean_title(text: str, consumed: list[str]) -> str:
     return title or "일정"
 
 
+def normalize_match_text(text: str) -> str:
+    return re.sub(r"[^0-9a-zA-Z가-힣]+", "", text).lower()
+
+
 def parse_voice_command(text: str) -> dict[str, Any]:
     if not text or not text.strip():
         raise ValueError("text is required")
@@ -207,6 +227,60 @@ def parse_voice_command(text: str) -> dict[str, Any]:
         "source": "voice",
         "done": False,
     }
+
+
+def voice_command_action(text: str) -> str:
+    compact = re.sub(r"\s+", "", text.lower())
+    add_positions = [compact.rfind(word) for word in ADD_ACTION_WORDS if word in compact]
+    delete_positions = [compact.rfind(word) for word in DELETE_ACTION_WORDS if word in compact]
+    last_add = max(add_positions, default=-1)
+    last_delete = max(delete_positions, default=-1)
+
+    if last_delete > last_add:
+        return "delete"
+    if last_add >= 0:
+        return "add"
+    raise ValueError("지원하는 일정 명령이 아닙니다")
+
+
+def parse_delete_command(text: str) -> dict[str, Any]:
+    if not text or not text.strip():
+        raise ValueError("text is required")
+
+    today = date.today()
+    schedule_date, date_token = parse_korean_date(text, today)
+    schedule_time, time_token = parse_korean_time(text)
+    title = clean_title(text, [date_token, time_token])
+    return {
+        "title": "" if title == "일정" else title,
+        "date": schedule_date.isoformat() if date_token else "",
+        "time": schedule_time if time_token else "",
+    }
+
+
+def matches_delete_query(item: dict[str, Any], query: dict[str, Any]) -> bool:
+    if query.get("date") and item.get("date") != query["date"]:
+        return False
+    if query.get("time") and item.get("time") != query["time"]:
+        return False
+
+    title = normalize_match_text(str(item.get("title", "")))
+    query_title = normalize_match_text(str(query.get("title", "")))
+    if not query_title:
+        return bool(query.get("date") or query.get("time"))
+    return query_title in title or title in query_title
+
+
+def delete_schedules_by_query(query: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    items = read_schedules()
+    matches = [item for item in items if matches_delete_query(item, query)]
+    if len(matches) != 1:
+        return [], matches
+
+    match_id = matches[0].get("id")
+    remaining = [item for item in items if item.get("id") != match_id]
+    write_schedules(remaining)
+    return matches, matches
 
 
 def filtered_schedules(range_name: str) -> list[dict[str, Any]]:
@@ -257,8 +331,7 @@ class ScheduleHandler(BaseHTTPRequestHandler):
                 return
             if parsed.path == "/api/voice-command":
                 payload = self.read_json_body()
-                parsed_schedule = parse_voice_command(str(payload.get("text", "")))
-                self.create_schedule(parsed_schedule, extra={"parsed": parsed_schedule})
+                self.execute_voice_command(str(payload.get("text", "")))
                 return
             self.send_error(404, "Not found")
         except (json.JSONDecodeError, ValueError) as exc:
@@ -321,6 +394,41 @@ class ScheduleHandler(BaseHTTPRequestHandler):
             self.send_json(response, status=201)
         except ValueError as exc:
             self.send_json({"error": str(exc)}, status=400)
+
+    def execute_voice_command(self, text: str) -> None:
+        action = voice_command_action(text)
+        if action == "add":
+            parsed_schedule = parse_voice_command(text)
+            self.create_schedule(
+                parsed_schedule,
+                extra={"action": "added", "parsed": parsed_schedule},
+            )
+            return
+
+        query = parse_delete_command(text)
+        deleted, candidates = delete_schedules_by_query(query)
+        if len(deleted) == 1:
+            self.send_json({"action": "deleted", "deleted": deleted[0], "query": query})
+            return
+        if candidates:
+            self.send_json(
+                {
+                    "error": "삭제할 일정이 여러 개입니다",
+                    "action": "ambiguous_delete",
+                    "query": query,
+                    "candidates": candidates,
+                },
+                status=409,
+            )
+            return
+        self.send_json(
+            {
+                "error": "삭제할 일정을 찾지 못했습니다",
+                "action": "not_found_delete",
+                "query": query,
+            },
+            status=404,
+        )
 
     def read_json_body(self) -> dict[str, Any]:
         length = int(self.headers.get("Content-Length", "0") or "0")
