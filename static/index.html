@@ -20,49 +20,6 @@
       </header>
 
       <section class="layout">
-        <aside class="composer">
-          <form id="scheduleForm" class="panel">
-            <div class="panel-head">
-              <h2 id="formTitle">일정 추가</h2>
-              <button id="cancelEdit" class="icon-button hidden" type="button" title="수정 취소" aria-label="수정 취소">×</button>
-            </div>
-
-            <label>
-              <span>제목</span>
-              <input id="titleInput" name="title" autocomplete="off" required />
-            </label>
-
-            <div class="field-row">
-              <label>
-                <span>날짜</span>
-                <input id="dateInput" name="date" type="date" required />
-              </label>
-              <label>
-                <span>시간</span>
-                <input id="timeInput" name="time" type="time" />
-              </label>
-            </div>
-
-            <label>
-              <span>메모</span>
-              <textarea id="notesInput" name="notes" rows="4"></textarea>
-            </label>
-
-            <button id="saveButton" class="primary-button" type="submit">추가</button>
-          </form>
-
-          <form id="voiceForm" class="panel">
-            <div class="panel-head">
-              <h2>음성 문장 테스트</h2>
-            </div>
-            <label>
-              <span>명령문</span>
-              <input id="voiceInput" autocomplete="off" placeholder="오늘 3시 병원 예약해" />
-            </label>
-            <button class="secondary-button" type="submit">문장 실행</button>
-          </form>
-        </aside>
-
         <section class="board">
           <div class="board-head">
             <div>
@@ -104,7 +61,6 @@
           </div>
         </div>
         <div class="card-actions">
-          <button class="edit-button" type="button">수정</button>
           <button class="delete-button" type="button">삭제</button>
         </div>
       </article>

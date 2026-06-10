@@ -57,6 +57,17 @@ ACTION_WORDS = (
     "일정",
     "예약",
 )
+FILLER_WORDS = (
+    "해주세요",
+    "해줘",
+    "해",
+    "하려고",
+    "하려구",
+    "하고싶어",
+    "하고 싶어",
+    "싶어",
+    "좀",
+)
 WEEKDAYS = {
     "월": 0,
     "월요일": 0,
@@ -201,7 +212,9 @@ def clean_title(text: str, consumed: list[str]) -> str:
             title = title.replace(piece, " ")
     for word in ACTION_WORDS:
         title = title.replace(word, " ")
-    title = re.sub(r"\b에\b|에서|으로|로", " ", title)
+    for word in FILLER_WORDS:
+        title = title.replace(word, " ")
+    title = re.sub(r"\b에\b|에서|으로|로|을|를|은|는", " ", title)
     title = re.sub(r"\s+", " ", title).strip(" .,!?")
     return title or "일정"
 
@@ -271,16 +284,33 @@ def matches_delete_query(item: dict[str, Any], query: dict[str, Any]) -> bool:
     return query_title in title or title in query_title
 
 
+def matches_delete_title(item: dict[str, Any], query: dict[str, Any]) -> bool:
+    title = normalize_match_text(str(item.get("title", "")))
+    query_title = normalize_match_text(str(query.get("title", "")))
+    if not title or not query_title:
+        return False
+    return query_title in title or title in query_title
+
+
 def delete_schedules_by_query(query: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     items = read_schedules()
     matches = [item for item in items if matches_delete_query(item, query)]
-    if len(matches) != 1:
+    if len(matches) == 1:
+        match_id = matches[0].get("id")
+        remaining = [item for item in items if item.get("id") != match_id]
+        write_schedules(remaining)
+        return matches, matches
+    if len(matches) > 1:
         return [], matches
 
-    match_id = matches[0].get("id")
+    title_matches = [item for item in items if matches_delete_title(item, query)]
+    if len(title_matches) != 1:
+        return [], title_matches
+
+    match_id = title_matches[0].get("id")
     remaining = [item for item in items if item.get("id") != match_id]
     write_schedules(remaining)
-    return matches, matches
+    return title_matches, title_matches
 
 
 def filtered_schedules(range_name: str) -> list[dict[str, Any]]:

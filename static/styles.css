@@ -111,15 +111,7 @@ h2 {
 }
 
 .layout {
-  display: grid;
-  grid-template-columns: minmax(280px, 340px) 1fr;
-  gap: 18px;
-  align-items: start;
-}
-
-.composer {
-  display: grid;
-  gap: 14px;
+  display: block;
 }
 
 .panel,
@@ -381,7 +373,7 @@ textarea:focus {
   }
 
   .layout {
-    grid-template-columns: 1fr;
+    display: block;
   }
 
   .filters {
@@ -409,7 +401,7 @@ textarea:focus {
 
   .card-actions {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
   }
 
   .status-strip {
