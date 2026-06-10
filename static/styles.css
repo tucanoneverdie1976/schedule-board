@@ -280,7 +280,8 @@ textarea:focus {
   margin-top: 14px;
 }
 
-.news-section {
+.news-section,
+.market-section {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
@@ -288,7 +289,8 @@ textarea:focus {
   padding: 18px;
 }
 
-.news-head {
+.news-head,
+.market-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -296,7 +298,8 @@ textarea:focus {
   margin-bottom: 12px;
 }
 
-.news-updated {
+.news-updated,
+.market-updated {
   color: var(--muted);
   font-size: 0.86rem;
   font-weight: 700;
@@ -339,6 +342,89 @@ textarea:focus {
 }
 
 .news-empty {
+  min-height: 90px;
+}
+
+.market-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.market-card {
+  display: grid;
+  gap: 8px;
+  min-height: 126px;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--muted);
+  border-radius: 8px;
+  background: #fbfcfb;
+}
+
+.market-card.up {
+  border-left-color: #b23a3a;
+}
+
+.market-card.down {
+  border-left-color: var(--blue);
+}
+
+.market-card-head,
+.market-value-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.market-name {
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.market-status {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-align: right;
+}
+
+.market-value {
+  color: var(--ink);
+  font-size: 1.38rem;
+  line-height: 1;
+}
+
+.market-unit {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.market-change {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+.market-card.up .market-change {
+  color: #9b2f2f;
+}
+
+.market-card.down .market-change {
+  color: var(--blue);
+}
+
+.market-meta {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.market-empty {
+  grid-column: 1 / -1;
   min-height: 90px;
 }
 
@@ -455,6 +541,10 @@ textarea:focus {
   .card-actions {
     justify-content: flex-end;
   }
+
+  .market-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 520px) {
@@ -471,12 +561,18 @@ textarea:focus {
     white-space: normal;
   }
 
-  .news-head {
+  .news-head,
+  .market-head {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .news-updated {
+  .news-updated,
+  .market-updated {
     text-align: left;
+  }
+
+  .market-list {
+    grid-template-columns: 1fr;
   }
 }

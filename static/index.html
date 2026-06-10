@@ -58,6 +58,17 @@
           </div>
           <div id="newsList" class="news-list"></div>
         </section>
+
+        <section class="market-section">
+          <div class="market-head">
+            <div>
+              <p class="eyebrow">Market</p>
+              <h2>시장 현황</h2>
+            </div>
+            <span id="marketUpdatedText" class="market-updated">불러오는 중</span>
+          </div>
+          <div id="marketList" class="market-list"></div>
+        </section>
       </section>
     </main>
 
@@ -81,6 +92,21 @@
       <article class="news-card">
         <a class="news-title" href="#" target="_blank" rel="noopener noreferrer"></a>
         <div class="news-meta"></div>
+      </article>
+    </template>
+
+    <template id="marketTemplate">
+      <article class="market-card">
+        <div class="market-card-head">
+          <span class="market-name"></span>
+          <span class="market-status"></span>
+        </div>
+        <div class="market-value-row">
+          <strong class="market-value"></strong>
+          <span class="market-unit"></span>
+        </div>
+        <div class="market-change"></div>
+        <div class="market-meta"></div>
       </article>
     </template>
 

@@ -5,6 +5,7 @@ const state = {
 
 const SCHEDULE_REFRESH_MS = 5000;
 const NEWS_REFRESH_MS = 60000;
+const MARKET_REFRESH_MS = 60000;
 
 const els = {
   apiStatus: document.querySelector("#apiStatus"),
@@ -19,6 +20,9 @@ const els = {
   newsList: document.querySelector("#newsList"),
   newsTemplate: document.querySelector("#newsTemplate"),
   newsUpdatedText: document.querySelector("#newsUpdatedText"),
+  marketList: document.querySelector("#marketList"),
+  marketTemplate: document.querySelector("#marketTemplate"),
+  marketUpdatedText: document.querySelector("#marketUpdatedText"),
 };
 
 const rangeTitles = {
@@ -97,6 +101,23 @@ async function loadNews() {
   }
 }
 
+async function loadMarkets() {
+  if (!els.marketList) {
+    return;
+  }
+  try {
+    const payload = await request("/api/markets");
+    renderMarkets(payload.items || [], payload.updated_at || "", payload.error || "");
+  } catch (error) {
+    els.marketList.innerHTML = "";
+    const empty = document.createElement("div");
+    empty.className = "empty-state market-empty";
+    empty.textContent = "시장 정보를 불러오지 못했습니다.";
+    els.marketList.append(empty);
+    els.marketUpdatedText.textContent = "연결 실패";
+  }
+}
+
 function render() {
   els.scheduleList.innerHTML = "";
   els.boardTitle.textContent = rangeTitles[state.range];
@@ -157,6 +178,37 @@ function renderNews(items, updatedAt) {
   }
 }
 
+function renderMarkets(items, updatedAt, errorText) {
+  els.marketList.innerHTML = "";
+  els.marketUpdatedText.textContent = updatedAt ? `${formatNewsTime(updatedAt)} 갱신` : "대기 중";
+  els.marketUpdatedText.title = errorText || "";
+
+  if (!items.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state market-empty";
+    empty.textContent = "표시할 시장 정보가 없습니다.";
+    els.marketList.append(empty);
+    return;
+  }
+
+  for (const item of items) {
+    const card = els.marketTemplate.content.firstElementChild.cloneNode(true);
+    const direction = item.direction || "flat";
+    card.classList.add(direction);
+    card.querySelector(".market-name").textContent = item.name || item.code || "시장";
+    card.querySelector(".market-status").textContent = [item.status, item.delay].filter(Boolean).join(" · ");
+    card.querySelector(".market-value").textContent = item.value || "-";
+    card.querySelector(".market-unit").textContent = item.unit || "";
+
+    const changeRate = item.change_rate ? `${item.change_rate}%` : "";
+    card.querySelector(".market-change").textContent = [item.change, changeRate].filter(Boolean).join(" · ");
+
+    const metaParts = [item.source, formatNewsTime(item.updated_at)].filter(Boolean);
+    card.querySelector(".market-meta").textContent = metaParts.join(" · ");
+    els.marketList.append(card);
+  }
+}
+
 async function updateSchedule(id, payload) {
   try {
     await request(`/api/schedules/${id}`, {
@@ -191,5 +243,7 @@ els.refreshButton.addEventListener("click", loadSchedules);
 
 loadSchedules();
 loadNews();
+loadMarkets();
 setInterval(loadSchedules, SCHEDULE_REFRESH_MS);
 setInterval(loadNews, NEWS_REFRESH_MS);
+setInterval(loadMarkets, MARKET_REFRESH_MS);

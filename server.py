@@ -41,6 +41,23 @@ NEWS_CACHE_SECONDS = int(os.environ.get("NEWS_CACHE_SECONDS", "60"))
 NEWS_FETCH_TIMEOUT_SECONDS = float(os.environ.get("NEWS_FETCH_TIMEOUT_SECONDS", "8"))
 NEWS_LOCK = threading.Lock()
 NEWS_CACHE: dict[str, Any] = {"items": [], "fetched_at": 0.0, "updated_at": "", "error": "", "cursor": 0}
+MARKET_CACHE_SECONDS = int(os.environ.get("MARKET_CACHE_SECONDS", "60"))
+MARKET_FETCH_TIMEOUT_SECONDS = float(os.environ.get("MARKET_FETCH_TIMEOUT_SECONDS", "8"))
+NAVER_INDEX_API_URL = os.environ.get(
+    "NAVER_INDEX_API_URL",
+    "https://polling.finance.naver.com/api/realtime?query=SERVICE_INDEX:KOSPI,KOSDAQ,KPI200",
+)
+NAVER_MARKET_INDEX_API_URL = os.environ.get(
+    "NAVER_MARKET_INDEX_API_URL",
+    "https://m.stock.naver.com/front-api/marketIndex/majors",
+)
+MARKET_LOCK = threading.Lock()
+MARKET_CACHE: dict[str, Any] = {"items": [], "fetched_at": 0.0, "updated_at": "", "error": ""}
+INDEX_NAMES = {
+    "KOSPI": "KOSPI",
+    "KOSDAQ": "KOSDAQ",
+    "KPI200": "KOSPI 200",
+}
 
 ADD_ACTION_WORDS = (
     "예약해줘",
@@ -234,6 +251,171 @@ def fetch_news_items() -> dict[str, Any]:
             "cached": True,
             "error": str(exc),
         }
+
+
+def read_json_url(url: str, referer: str = "") -> dict[str, Any]:
+    headers = {
+        "Accept": "application/json, text/plain, */*",
+        "User-Agent": "ScheduleBoard/1.0 Mozilla/5.0",
+    }
+    if referer:
+        headers["Referer"] = referer
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req, timeout=MARKET_FETCH_TIMEOUT_SECONDS) as resp:
+        charset = resp.headers.get_content_charset() or "utf-8"
+        return json.loads(resp.read().decode(charset, errors="replace"))
+
+
+def parse_number(value: Any) -> float:
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = str(value).strip().replace(",", "")
+    if not text or text == "-":
+        return 0.0
+    return float(text)
+
+
+def format_decimal(value: float, places: int = 2) -> str:
+    return f"{value:,.{places}f}"
+
+
+def format_signed(value: float, places: int = 2) -> str:
+    prefix = "+" if value > 0 else ""
+    return f"{prefix}{value:,.{places}f}"
+
+
+def normalize_direction(value: float | None = None, direction_name: str = "") -> str:
+    if value is not None:
+        if value > 0:
+            return "up"
+        if value < 0:
+            return "down"
+    normalized = direction_name.upper()
+    if normalized == "RISING":
+        return "up"
+    if normalized == "FALLING":
+        return "down"
+    return "flat"
+
+
+def signed_text(value: Any, direction: str) -> str:
+    text = str(value or "").strip()
+    if not text or text == "-":
+        return text
+    if text.startswith(("+", "-")):
+        return text
+    if direction == "up":
+        return f"+{text}"
+    return text
+
+
+def timestamp_from_millis(value: Any) -> str:
+    try:
+        return datetime.fromtimestamp(float(value) / 1000).astimezone().replace(microsecond=0).isoformat()
+    except (TypeError, ValueError, OSError):
+        return now_iso()
+
+
+def fetch_naver_indices() -> list[dict[str, str]]:
+    payload = read_json_url(NAVER_INDEX_API_URL, "https://finance.naver.com/sise/")
+    result = payload.get("result") or {}
+    updated_at = timestamp_from_millis(result.get("time"))
+    items: list[dict[str, str]] = []
+    for area in result.get("areas") or []:
+        if area.get("name") != "SERVICE_INDEX":
+            continue
+        for raw_item in area.get("datas") or []:
+            code = str(raw_item.get("cd") or "").strip()
+            if code not in INDEX_NAMES:
+                continue
+            value = parse_number(raw_item.get("nv")) / 100
+            change = parse_number(raw_item.get("cv")) / 100
+            change_rate = parse_number(raw_item.get("cr"))
+            direction = normalize_direction(change)
+            items.append(
+                {
+                    "category": "index",
+                    "code": code,
+                    "name": INDEX_NAMES[code],
+                    "value": format_decimal(value),
+                    "unit": "pt",
+                    "change": format_signed(change),
+                    "change_rate": format_signed(change_rate),
+                    "direction": direction,
+                    "status": str(raw_item.get("ms") or ""),
+                    "delay": "",
+                    "source": "Naver Finance / KRX",
+                    "updated_at": updated_at,
+                }
+            )
+    return items
+
+
+def fetch_naver_domestic_gold() -> list[dict[str, str]]:
+    payload = read_json_url(NAVER_MARKET_INDEX_API_URL, "https://m.stock.naver.com/marketindex/home/major")
+    result = payload.get("result") or {}
+    for raw_item in result.get("metals") or []:
+        if raw_item.get("reutersCode") != "M04020000" and raw_item.get("name") != "국내 금":
+            continue
+        fluct_type = raw_item.get("fluctuationsType") or {}
+        change_value = parse_number(raw_item.get("fluctuations"))
+        direction = normalize_direction(change_value, str(fluct_type.get("name") or ""))
+        return [
+            {
+                "category": "gold",
+                "code": str(raw_item.get("reutersCode") or "M04020000"),
+                "name": "국내 금",
+                "value": str(raw_item.get("closePrice") or ""),
+                "unit": str(raw_item.get("unit") or "원/g"),
+                "change": signed_text(raw_item.get("fluctuations"), direction),
+                "change_rate": signed_text(raw_item.get("fluctuationsRatio"), direction),
+                "direction": direction,
+                "status": str(raw_item.get("marketStatus") or ""),
+                "delay": str(raw_item.get("delayTimeName") or ""),
+                "source": "Naver Stock / 국내 금 M04020000",
+                "updated_at": str(raw_item.get("localTradedAt") or now_iso()),
+            }
+        ]
+    return []
+
+
+def fetch_market_items() -> dict[str, Any]:
+    now_ts = datetime.now().timestamp()
+    with MARKET_LOCK:
+        cached_age = now_ts - float(MARKET_CACHE.get("fetched_at") or 0)
+        cached_items = list(MARKET_CACHE.get("items") or [])
+        cached_updated_at = str(MARKET_CACHE.get("updated_at") or "")
+        cached_error = str(MARKET_CACHE.get("error") or "")
+        is_cache_fresh = bool(cached_items) and cached_age < MARKET_CACHE_SECONDS
+    if is_cache_fresh:
+        return {
+            "items": cached_items,
+            "updated_at": cached_updated_at,
+            "cached": True,
+            "error": cached_error,
+        }
+
+    items: list[dict[str, str]] = []
+    errors: list[str] = []
+    for source_name, fetcher in (("indices", fetch_naver_indices), ("gold", fetch_naver_domestic_gold)):
+        try:
+            items.extend(fetcher())
+        except (OSError, urllib.error.URLError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+            errors.append(f"{source_name}: {exc}")
+
+    if items:
+        updated_at = now_iso()
+        error = "; ".join(errors)
+        with MARKET_LOCK:
+            MARKET_CACHE.update({"items": items, "fetched_at": now_ts, "updated_at": updated_at, "error": error})
+        return {"items": items, "updated_at": updated_at, "cached": False, "error": error}
+
+    error = "; ".join(errors) or "market data unavailable"
+    with MARKET_LOCK:
+        MARKET_CACHE["error"] = error
+        cached_items = list(MARKET_CACHE.get("items") or [])
+        cached_updated_at = str(MARKET_CACHE.get("updated_at") or "")
+    return {"items": cached_items, "updated_at": cached_updated_at, "cached": True, "error": error}
 
 
 def normalize_schedule(payload: dict[str, Any], existing: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -469,6 +651,9 @@ class ScheduleHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/news":
             self.send_json(fetch_news_items())
+            return
+        if parsed.path == "/api/markets":
+            self.send_json(fetch_market_items())
             return
         self.send_error(404, "Not found")
 
