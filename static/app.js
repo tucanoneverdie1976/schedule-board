@@ -139,7 +139,7 @@ function render() {
     card.querySelector(".card-time").textContent = `${formatDateLabel(item.date)}${item.time ? ` · ${item.time}` : ""}`;
 
     const notes = card.querySelector(".card-notes");
-    notes.textContent = item.notes || (item.source === "voice" ? "음성으로 추가됨" : "");
+    notes.textContent = item.notes || "";
     notes.hidden = !notes.textContent;
 
     els.scheduleList.append(card);
