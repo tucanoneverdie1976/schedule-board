@@ -47,6 +47,17 @@
 
           <div id="scheduleList" class="schedule-list"></div>
         </section>
+
+        <section class="news-section">
+          <div class="news-head">
+            <div>
+              <p class="eyebrow">News Feed</p>
+              <h2>최신 뉴스</h2>
+            </div>
+            <span id="newsUpdatedText" class="news-updated">불러오는 중</span>
+          </div>
+          <div id="newsList" class="news-list"></div>
+        </section>
       </section>
     </main>
 
@@ -63,6 +74,13 @@
         <div class="card-actions">
           <button class="delete-button" type="button">삭제</button>
         </div>
+      </article>
+    </template>
+
+    <template id="newsTemplate">
+      <article class="news-card">
+        <a class="news-title" href="#" target="_blank" rel="noopener noreferrer"></a>
+        <div class="news-meta"></div>
       </article>
     </template>
 

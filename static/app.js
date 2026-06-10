@@ -3,7 +3,8 @@ const state = {
   items: [],
 };
 
-const AUTO_REFRESH_MS = 30000;
+const SCHEDULE_REFRESH_MS = 5000;
+const NEWS_REFRESH_MS = 60000;
 
 const els = {
   apiStatus: document.querySelector("#apiStatus"),
@@ -15,6 +16,9 @@ const els = {
   boardTitle: document.querySelector("#boardTitle"),
   todayLabel: document.querySelector("#todayLabel"),
   refreshButton: document.querySelector("#refreshButton"),
+  newsList: document.querySelector("#newsList"),
+  newsTemplate: document.querySelector("#newsTemplate"),
+  newsUpdatedText: document.querySelector("#newsUpdatedText"),
 };
 
 const rangeTitles = {
@@ -29,6 +33,22 @@ function formatDateLabel(value) {
     month: "long",
     day: "numeric",
     weekday: "short",
+  }).format(date);
+}
+
+function formatNewsTime(value) {
+  if (!value) {
+    return "";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return new Intl.DateTimeFormat("ko-KR", {
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   }).format(date);
 }
 
@@ -57,6 +77,23 @@ async function loadSchedules() {
     setStatus(true, "연결됨");
   } catch (error) {
     setStatus(false, error.message);
+  }
+}
+
+async function loadNews() {
+  if (!els.newsList) {
+    return;
+  }
+  try {
+    const payload = await request("/api/news");
+    renderNews(payload.items || [], payload.updated_at || "");
+  } catch (error) {
+    els.newsList.innerHTML = "";
+    const empty = document.createElement("div");
+    empty.className = "empty-state news-empty";
+    empty.textContent = "뉴스를 불러오지 못했습니다.";
+    els.newsList.append(empty);
+    els.newsUpdatedText.textContent = "연결 실패";
   }
 }
 
@@ -97,6 +134,29 @@ function render() {
   }
 }
 
+function renderNews(items, updatedAt) {
+  els.newsList.innerHTML = "";
+  els.newsUpdatedText.textContent = updatedAt ? `${formatNewsTime(updatedAt)} 갱신` : "대기 중";
+
+  if (!items.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state news-empty";
+    empty.textContent = "표시할 뉴스가 없습니다.";
+    els.newsList.append(empty);
+    return;
+  }
+
+  for (const item of items.slice(0, 2)) {
+    const card = els.newsTemplate.content.firstElementChild.cloneNode(true);
+    const title = card.querySelector(".news-title");
+    title.textContent = item.title || "뉴스";
+    title.href = item.link || "#";
+    const metaParts = [item.source, formatNewsTime(item.published_at)].filter(Boolean);
+    card.querySelector(".news-meta").textContent = metaParts.join(" · ");
+    els.newsList.append(card);
+  }
+}
+
 async function updateSchedule(id, payload) {
   try {
     await request(`/api/schedules/${id}`, {
@@ -130,4 +190,6 @@ document.querySelectorAll(".filter-button").forEach((button) => {
 els.refreshButton.addEventListener("click", loadSchedules);
 
 loadSchedules();
-setInterval(loadSchedules, AUTO_REFRESH_MS);
+loadNews();
+setInterval(loadSchedules, SCHEDULE_REFRESH_MS);
+setInterval(loadNews, NEWS_REFRESH_MS);

@@ -9,16 +9,21 @@ Runs with Python's standard library only:
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import os
 import re
 import threading
+import urllib.error
+import urllib.request
 import uuid
 from datetime import date, datetime, time, timedelta
+from email.utils import parsedate_to_datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
+from xml.etree import ElementTree
 
 
 ROOT_DIR = Path(__file__).resolve().parent
@@ -26,6 +31,15 @@ STATIC_DIR = ROOT_DIR / "static"
 DATA_DIR = ROOT_DIR / "data"
 DATA_FILE = DATA_DIR / "schedules.json"
 DATA_LOCK = threading.Lock()
+NEWS_FEED_URL = os.environ.get(
+    "NEWS_FEED_URL",
+    "https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko",
+)
+NEWS_LIMIT = int(os.environ.get("NEWS_LIMIT", "2"))
+NEWS_CACHE_SECONDS = int(os.environ.get("NEWS_CACHE_SECONDS", "60"))
+NEWS_FETCH_TIMEOUT_SECONDS = float(os.environ.get("NEWS_FETCH_TIMEOUT_SECONDS", "8"))
+NEWS_LOCK = threading.Lock()
+NEWS_CACHE: dict[str, Any] = {"items": [], "fetched_at": 0.0, "updated_at": "", "error": ""}
 
 ADD_ACTION_WORDS = (
     "예약해줘",
@@ -117,6 +131,77 @@ def write_schedules(items: list[dict[str, Any]]) -> None:
 
 def now_iso() -> str:
     return datetime.now().replace(microsecond=0).isoformat()
+
+
+def parse_news_date(value: str) -> str:
+    if not value:
+        return ""
+    try:
+        parsed = parsedate_to_datetime(value)
+        if parsed:
+            return parsed.astimezone().replace(microsecond=0).isoformat()
+    except (TypeError, ValueError):
+        pass
+    return value.strip()
+
+
+def text_or_empty(parent: ElementTree.Element, child_name: str) -> str:
+    found = parent.find(child_name)
+    if found is None or found.text is None:
+        return ""
+    return html.unescape(found.text).strip()
+
+
+def parse_rss_items(xml_bytes: bytes, limit: int) -> list[dict[str, str]]:
+    root = ElementTree.fromstring(xml_bytes)
+    items: list[dict[str, str]] = []
+    for item in root.findall(".//item"):
+        source = item.find("source")
+        source_text = html.unescape(source.text).strip() if source is not None and source.text else ""
+        parsed = {
+            "title": text_or_empty(item, "title"),
+            "link": text_or_empty(item, "link"),
+            "source": source_text,
+            "published_at": parse_news_date(text_or_empty(item, "pubDate")),
+        }
+        if parsed["title"] and parsed["link"]:
+            items.append(parsed)
+        if len(items) >= limit:
+            break
+    return items
+
+
+def fetch_news_items() -> dict[str, Any]:
+    now_ts = datetime.now().timestamp()
+    with NEWS_LOCK:
+        cached_age = now_ts - float(NEWS_CACHE.get("fetched_at") or 0)
+        if NEWS_CACHE.get("items") and cached_age < NEWS_CACHE_SECONDS:
+            return {
+                "items": NEWS_CACHE["items"],
+                "updated_at": NEWS_CACHE.get("updated_at", ""),
+                "cached": True,
+            }
+
+    req = urllib.request.Request(
+        NEWS_FEED_URL,
+        headers={"User-Agent": "ScheduleBoard/1.0"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=NEWS_FETCH_TIMEOUT_SECONDS) as resp:
+            items = parse_rss_items(resp.read(), max(1, NEWS_LIMIT))
+        updated_at = now_iso()
+        with NEWS_LOCK:
+            NEWS_CACHE.update({"items": items, "fetched_at": now_ts, "updated_at": updated_at, "error": ""})
+        return {"items": items, "updated_at": updated_at, "cached": False}
+    except (OSError, urllib.error.URLError, ElementTree.ParseError) as exc:
+        with NEWS_LOCK:
+            NEWS_CACHE["error"] = str(exc)
+            return {
+                "items": NEWS_CACHE.get("items", []),
+                "updated_at": NEWS_CACHE.get("updated_at", ""),
+                "cached": True,
+                "error": str(exc),
+            }
 
 
 def normalize_schedule(payload: dict[str, Any], existing: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -349,6 +434,9 @@ class ScheduleHandler(BaseHTTPRequestHandler):
             params = parse_qs(parsed.query)
             range_name = params.get("range", ["all"])[0]
             self.send_json({"items": filtered_schedules(range_name)})
+            return
+        if parsed.path == "/api/news":
+            self.send_json(fetch_news_items())
             return
         self.send_error(404, "Not found")
 
