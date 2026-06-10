@@ -453,18 +453,6 @@ def parse_korean_date(text: str, today: date) -> tuple[date, str]:
     if "오늘" in compact:
         return today, "오늘"
 
-    match = re.search(r"(?:(다음|이번)\s*주\s*)?(월요일|화요일|수요일|목요일|금요일|토요일|일요일|월|화|수|목|금|토|일)", text)
-    if match:
-        prefix = match.group(1) or ""
-        weekday_word = match.group(2)
-        target = WEEKDAYS[weekday_word]
-        days = (target - today.weekday()) % 7
-        if prefix == "다음":
-            days += 7 if days == 0 else 0
-        elif prefix == "":
-            days = 7 if days == 0 else days
-        return today + timedelta(days=days), match.group(0)
-
     explicit = re.search(r"(\d{4})[년\-. ]+(\d{1,2})[월\-. ]+(\d{1,2})일?", text)
     if explicit:
         return date(int(explicit.group(1)), int(explicit.group(2)), int(explicit.group(3))), explicit.group(0)
@@ -476,6 +464,18 @@ def parse_korean_date(text: str, today: date) -> tuple[date, str]:
         if parsed < today:
             parsed = date(year + 1, parsed.month, parsed.day)
         return parsed, month_day.group(0)
+
+    match = re.search(r"(?:(다음|이번)\s*주\s*)?(월요일|화요일|수요일|목요일|금요일|토요일|일요일|월|화|수|목|금|토|일)", text)
+    if match:
+        prefix = match.group(1) or ""
+        weekday_word = match.group(2)
+        target = WEEKDAYS[weekday_word]
+        days = (target - today.weekday()) % 7
+        if prefix == "다음":
+            days += 7 if days == 0 else 0
+        elif prefix == "":
+            days = 7 if days == 0 else days
+        return today + timedelta(days=days), match.group(0)
 
     return today, ""
 
