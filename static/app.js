@@ -132,9 +132,10 @@ function render() {
     return;
   }
 
-  for (const item of state.items) {
+  state.items.forEach((item, index) => {
     const card = els.template.content.firstElementChild.cloneNode(true);
     card.classList.toggle("done", item.done);
+    card.querySelector(".schedule-number").textContent = index + 1;
     card.querySelector("h3").textContent = item.title;
     card.querySelector(".card-time").textContent = `${formatDateLabel(item.date)}${item.time ? ` · ${item.time}` : ""}`;
 
@@ -145,7 +146,7 @@ function render() {
     card.querySelector(".done-toggle").addEventListener("click", () => updateSchedule(item.id, { ...item, done: !item.done }));
     card.querySelector(".delete-button").addEventListener("click", () => deleteSchedule(item.id));
     els.scheduleList.append(card);
-  }
+  });
 }
 
 function renderNews(items, updatedAt) {

@@ -522,6 +522,63 @@ def normalize_match_text(text: str) -> str:
     return re.sub(r"[^0-9a-zA-Z가-힣]+", "", text).lower()
 
 
+def ordered_schedules(items: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+    return list(read_schedules() if items is None else items)
+
+
+def parse_korean_order_number(value: str) -> int | None:
+    word = re.sub(r"\s+", "", value)
+    native_numbers = {
+        "첫": 1,
+        "한": 1,
+        "하나": 1,
+        "두": 2,
+        "둘": 2,
+        "세": 3,
+        "셋": 3,
+        "네": 4,
+        "넷": 4,
+        "다섯": 5,
+        "여섯": 6,
+        "일곱": 7,
+        "여덟": 8,
+        "아홉": 9,
+        "열": 10,
+    }
+    if word in native_numbers:
+        return native_numbers[word]
+
+    sino_digits = {"일": 1, "삼": 3, "사": 4, "오": 5, "육": 6, "륙": 6, "칠": 7, "팔": 8, "구": 9}
+    if word in sino_digits:
+        return sino_digits[word]
+    if word == "십":
+        return 10
+    if "십" in word:
+        tens_text, ones_text = word.split("십", 1)
+        tens = sino_digits.get(tens_text, 1 if not tens_text else 0)
+        ones = sino_digits.get(ones_text, 0) if ones_text else 0
+        number = (tens * 10) + ones
+        return number or None
+    return None
+
+
+def parse_schedule_sequence(text: str) -> int | None:
+    digit_match = re.search(r"(\d+)\s*(?:번(?:째)?|번째)", text)
+    if digit_match:
+        number = int(digit_match.group(1))
+        return number if number > 0 else None
+
+    compact = re.sub(r"\s+", "", text)
+    native_match = re.search(r"(첫|한|하나|두|둘|세|셋|네|넷|다섯|여섯|일곱|여덟|아홉|열)(?:번째|째)", compact)
+    if native_match:
+        return parse_korean_order_number(native_match.group(1))
+
+    sino_match = re.search(r"([일삼사오육륙칠팔구십]+)번(?=일정|을|를|삭제|지워|취소|해|$)", compact)
+    if sino_match:
+        return parse_korean_order_number(sino_match.group(1))
+    return None
+
+
 def parse_voice_command(text: str) -> dict[str, Any]:
     if not text or not text.strip():
         raise ValueError("text is required")
@@ -560,10 +617,12 @@ def parse_delete_command(text: str) -> dict[str, Any]:
         raise ValueError("text is required")
 
     today = date.today()
+    sequence = parse_schedule_sequence(text)
     schedule_date, date_token = parse_korean_date(text, today)
     schedule_time, time_token = parse_korean_time(text)
     title = clean_title(text, [date_token, time_token])
     return {
+        "sequence": sequence,
         "title": "" if title == "일정" else title,
         "date": schedule_date.isoformat() if date_token else "",
         "time": schedule_time if time_token else "",
@@ -591,7 +650,29 @@ def matches_delete_title(item: dict[str, Any], query: dict[str, Any]) -> bool:
     return query_title in title or title in query_title
 
 
+def delete_schedule_by_sequence(sequence: int) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    items = read_schedules()
+    ordered_items = ordered_schedules(items)
+    if sequence < 1 or sequence > len(ordered_items):
+        return [], []
+
+    target = ordered_items[sequence - 1]
+    target_id = target.get("id")
+    remaining = [item for item in items if item.get("id") != target_id]
+    if len(remaining) == len(items):
+        return [], []
+
+    write_schedules(remaining)
+    deleted = dict(target)
+    deleted["sequence"] = sequence
+    return [deleted], [deleted]
+
+
 def delete_schedules_by_query(query: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    sequence = query.get("sequence")
+    if isinstance(sequence, int):
+        return delete_schedule_by_sequence(sequence)
+
     items = read_schedules()
     matches = [item for item in items if matches_delete_query(item, query)]
     if len(matches) == 1:
@@ -613,7 +694,7 @@ def delete_schedules_by_query(query: dict[str, Any]) -> tuple[list[dict[str, Any
 
 
 def filtered_schedules(range_name: str) -> list[dict[str, Any]]:
-    items = sorted(read_schedules(), key=lambda item: (item.get("date", ""), item.get("time", ""), item.get("title", "")))
+    items = ordered_schedules()
     today = date.today()
     if range_name == "today":
         return [item for item in items if item.get("date") == today.isoformat()]

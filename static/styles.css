@@ -457,6 +457,24 @@ textarea:focus {
   min-width: 0;
 }
 
+.schedule-number {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.schedule-card.done .schedule-number {
+  background: #e8edf3;
+  color: var(--muted);
+}
+
 .done-toggle {
   flex: 0 0 auto;
   width: 26px;
