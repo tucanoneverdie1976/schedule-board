@@ -6,18 +6,59 @@ const SCHEDULE_REFRESH_MS = 5000;
 const NEWS_REFRESH_MS = 60000;
 const MARKET_REFRESH_MS = 60000;
 const ART_REFRESH_MS = 300000;
-const ART_PHOTOS = [
-  { id: "10", title: "고요한 숲", artist: "오늘의 이미지" },
-  { id: "11", title: "열린 들판", artist: "오늘의 이미지" },
-  { id: "13", title: "잔잔한 해변", artist: "오늘의 이미지" },
-  { id: "16", title: "산의 빛", artist: "오늘의 이미지" },
-  { id: "18", title: "부드러운 지평선", artist: "오늘의 이미지" },
-  { id: "1015", title: "아침 능선", artist: "오늘의 이미지" },
-  { id: "1018", title: "느린 계곡", artist: "오늘의 이미지" },
-  { id: "1043", title: "맑은 공기", artist: "오늘의 이미지" },
+const SCHEDULE_SCROLL_PX_PER_SECOND = 14;
+const SCHEDULE_SCROLL_TOP_PAUSE_MS = 3000;
+const SCHEDULE_SCROLL_BOTTOM_PAUSE_MS = 4500;
+const ARTWORKS = [
+  {
+    title: "Water Lilies (Agapanthus)",
+    artist: "Claude Monet",
+    url: "https://openaccess-cdn.clevelandart.org/1960.81/1960.81_web.jpg",
+  },
+  {
+    title: "Gardener's House at Antibes",
+    artist: "Claude Monet",
+    url: "https://openaccess-cdn.clevelandart.org/1916.1044/1916.1044_web.jpg",
+  },
+  {
+    title: "Vale of Kashmir",
+    artist: "Robert S. Duncanson",
+    url: "https://openaccess-cdn.clevelandart.org/2014.12/2014.12_web.jpg",
+  },
+  {
+    title: "Rocky, Wooded Landscape",
+    artist: "Thomas Gainsborough",
+    url: "https://openaccess-cdn.clevelandart.org/1984.59/1984.59_web.jpg",
+  },
+  {
+    title: "Prater Landscape",
+    artist: "Ferdinand Georg Waldmuller",
+    url: "https://openaccess-cdn.clevelandart.org/1983.155/1983.155_web.jpg",
+  },
+  {
+    title: "Landscape with Large Trees",
+    artist: "Gustave Courbet",
+    url: "https://openaccess-cdn.clevelandart.org/1976.18/1976.18_web.jpg",
+  },
+  {
+    title: "The Seine at Bas-Meudon",
+    artist: "Johan Barthold Jongkind",
+    url: "https://openaccess-cdn.clevelandart.org/1993.236/1993.236_web.jpg",
+  },
+  {
+    title: "Landscape",
+    artist: "Soami",
+    url: "https://openaccess-cdn.clevelandart.org/1963.262/1963.262_web.jpg",
+  },
 ];
 
 let activeArtIndex = -1;
+const scheduleScroll = {
+  direction: 1,
+  lastFrameAt: 0,
+  pauseUntil: 0,
+  signature: "",
+};
 
 const els = {
   apiStatus: document.querySelector("#apiStatus"),
@@ -67,6 +108,18 @@ function formatNewsTime(value) {
 function setStatus(ok, text) {
   els.apiStatus.classList.toggle("ok", ok);
   els.statusText.textContent = text;
+}
+
+function getScheduleSignature(items) {
+  return items
+    .map((item, index) => [
+      item.id || index,
+      item.date || "",
+      item.time || "",
+      item.title || "",
+      item.done ? "1" : "0",
+    ].join(":"))
+    .join("|");
 }
 
 async function request(path, options = {}) {
@@ -127,6 +180,10 @@ async function loadMarkets() {
 }
 
 function render() {
+  const previousScrollTop = els.scheduleList.scrollTop;
+  const nextSignature = getScheduleSignature(state.items);
+  const scheduleChanged = nextSignature !== scheduleScroll.signature;
+
   els.scheduleList.innerHTML = "";
   els.boardTitle.textContent = "전체 일정";
   els.todayLabel.textContent = new Intl.DateTimeFormat("ko-KR", {
@@ -144,6 +201,7 @@ function render() {
     empty.className = "empty-state";
     empty.textContent = "표시할 일정이 없습니다.";
     els.scheduleList.append(empty);
+    requestAnimationFrame(() => syncScheduleScroll(true, 0, nextSignature));
     return;
   }
 
@@ -159,6 +217,10 @@ function render() {
     notes.hidden = !notes.textContent;
 
     els.scheduleList.append(card);
+  });
+
+  requestAnimationFrame(() => {
+    syncScheduleScroll(scheduleChanged, previousScrollTop, nextSignature);
   });
 }
 
@@ -222,22 +284,76 @@ function refreshArt() {
   }
 
   let nextIndex = activeArtIndex;
-  while (nextIndex === activeArtIndex && ART_PHOTOS.length > 1) {
-    nextIndex = Math.floor(Math.random() * ART_PHOTOS.length);
+  while (nextIndex === activeArtIndex && ARTWORKS.length > 1) {
+    nextIndex = Math.floor(Math.random() * ARTWORKS.length);
   }
   activeArtIndex = nextIndex;
 
-  const photo = ART_PHOTOS[activeArtIndex];
-  const width = Math.min(1800, Math.max(900, Math.round(window.innerWidth * window.devicePixelRatio)));
-  const height = Math.min(900, Math.max(420, Math.round(window.innerHeight * 0.32)));
+  const artwork = ARTWORKS[activeArtIndex];
   els.artImage.classList.add("is-loading");
-  els.artImage.src = `https://picsum.photos/id/${photo.id}/${width}/${height}.jpg`;
+  els.artImage.src = artwork.url;
   if (els.artTitle) {
-    els.artTitle.textContent = photo.title;
+    els.artTitle.textContent = artwork.title;
   }
   if (els.artArtist) {
-    els.artArtist.textContent = photo.artist;
+    els.artArtist.textContent = artwork.artist;
   }
+}
+
+function syncScheduleScroll(reset, previousScrollTop, signature) {
+  const maxScroll = Math.max(0, els.scheduleList.scrollHeight - els.scheduleList.clientHeight);
+  const isScrollable = maxScroll > 2;
+
+  els.scheduleList.classList.toggle("is-scrollable", isScrollable);
+  scheduleScroll.signature = signature;
+
+  if (!isScrollable) {
+    els.scheduleList.scrollTop = 0;
+    scheduleScroll.direction = 1;
+    scheduleScroll.pauseUntil = 0;
+    return;
+  }
+
+  if (reset) {
+    els.scheduleList.scrollTop = 0;
+    scheduleScroll.direction = 1;
+    scheduleScroll.pauseUntil = performance.now() + SCHEDULE_SCROLL_TOP_PAUSE_MS;
+    return;
+  }
+
+  els.scheduleList.scrollTop = Math.min(previousScrollTop, maxScroll);
+}
+
+function animateScheduleScroll(frameAt) {
+  const maxScroll = Math.max(0, els.scheduleList.scrollHeight - els.scheduleList.clientHeight);
+
+  if (maxScroll > 2) {
+    els.scheduleList.classList.add("is-scrollable");
+
+    if (!scheduleScroll.lastFrameAt) {
+      scheduleScroll.lastFrameAt = frameAt;
+    }
+
+    const deltaMs = Math.min(80, frameAt - scheduleScroll.lastFrameAt);
+    if (frameAt >= scheduleScroll.pauseUntil) {
+      els.scheduleList.scrollTop += scheduleScroll.direction * SCHEDULE_SCROLL_PX_PER_SECOND * (deltaMs / 1000);
+
+      if (els.scheduleList.scrollTop >= maxScroll - 1) {
+        els.scheduleList.scrollTop = maxScroll;
+        scheduleScroll.direction = -1;
+        scheduleScroll.pauseUntil = frameAt + SCHEDULE_SCROLL_BOTTOM_PAUSE_MS;
+      } else if (els.scheduleList.scrollTop <= 1) {
+        els.scheduleList.scrollTop = 0;
+        scheduleScroll.direction = 1;
+        scheduleScroll.pauseUntil = frameAt + SCHEDULE_SCROLL_TOP_PAUSE_MS;
+      }
+    }
+  } else {
+    els.scheduleList.classList.remove("is-scrollable");
+  }
+
+  scheduleScroll.lastFrameAt = frameAt;
+  requestAnimationFrame(animateScheduleScroll);
 }
 
 if (els.artImage) {
@@ -254,6 +370,7 @@ loadSchedules();
 loadNews();
 loadMarkets();
 refreshArt();
+requestAnimationFrame(animateScheduleScroll);
 setInterval(loadSchedules, SCHEDULE_REFRESH_MS);
 setInterval(loadNews, NEWS_REFRESH_MS);
 setInterval(loadMarkets, MARKET_REFRESH_MS);
