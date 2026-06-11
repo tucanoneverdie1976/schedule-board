@@ -593,10 +593,16 @@ def parse_korean_date(text: str, today: date) -> tuple[date, str]:
             parsed = date(year + 1, parsed.month, parsed.day)
         return parsed, month_day.group(0)
 
-    match = re.search(r"(?:(다음|이번)\s*주\s*)?(월요일|화요일|수요일|목요일|금요일|토요일|일요일|월|화|수|목|금|토|일)", text)
-    if match:
+    weekday_pattern = r"(?:(다음|이번)\s*주\s*)?(월요일|화요일|수요일|목요일|금요일|토요일|일요일|월|화|수|목|금|토|일)"
+    for match in re.finditer(weekday_pattern, text):
         prefix = match.group(1) or ""
         weekday_word = match.group(2)
+        if len(weekday_word) == 1:
+            start, end = match.span(2)
+            previous_char = text[start - 1] if start > 0 else ""
+            next_char = text[end] if end < len(text) else ""
+            if re.match(r"[가-힣]", previous_char) or re.match(r"[가-힣]", next_char):
+                continue
         target = WEEKDAYS[weekday_word]
         days = (target - today.weekday()) % 7
         if prefix == "다음":
@@ -844,6 +850,10 @@ def delete_schedules_by_query(query: dict[str, Any]) -> tuple[list[dict[str, Any
     return title_matches, title_matches
 
 
+def delete_query_has_target(query: dict[str, Any]) -> bool:
+    return bool(query.get("sequence") or query.get("title") or query.get("date") or query.get("time"))
+
+
 def filtered_schedules(range_name: str) -> list[dict[str, Any]]:
     items = ordered_schedules()
     today = date.today()
@@ -976,6 +986,17 @@ class ScheduleHandler(BaseHTTPRequestHandler):
             return
 
         query = parse_delete_command(text)
+        if not delete_query_has_target(query):
+            self.send_json(
+                {
+                    "error": "삭제할 일정 번호나 제목을 말해주세요",
+                    "action": "missing_delete_target",
+                    "query": query,
+                },
+                status=400,
+            )
+            return
+
         deleted, candidates = delete_schedules_by_query(query)
         if len(deleted) == 1:
             self.send_json({"action": "deleted", "deleted": deleted[0], "query": query})

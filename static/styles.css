@@ -1,6 +1,5 @@
 :root {
   color-scheme: light;
-  --transparent-cursor: url("data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==") 0 0;
   --bg: #f7f8f5;
   --surface: #ffffff;
   --surface-2: #eef4f1;
@@ -22,13 +21,15 @@
 html {
   height: 100%;
   min-height: 100%;
-  cursor: var(--transparent-cursor), none !important;
+  cursor: none !important;
 }
 
 html,
 body,
-body * {
-  cursor: var(--transparent-cursor), none !important;
+body *,
+body *::before,
+body *::after {
+  cursor: none !important;
 }
 
 body {
@@ -48,7 +49,7 @@ textarea {
 }
 
 button {
-  cursor: var(--transparent-cursor), none;
+  cursor: none !important;
 }
 
 .app-shell {

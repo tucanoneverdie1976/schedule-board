@@ -295,11 +295,11 @@ function render() {
   const track = document.createElement("div");
   track.className = "schedule-track";
   track.append(createScheduleCycle(state.items));
-  track.append(createScheduleCycle(state.items, true));
 
   els.scheduleList.append(track);
 
   requestAnimationFrame(() => {
+    prepareScheduleCycles(track);
     syncScheduleScroll(scheduleChanged, previousOffset, nextSignature);
   });
 }
@@ -409,6 +409,22 @@ function getScheduleTrack() {
   return els.scheduleList.querySelector(".schedule-track");
 }
 
+function getScheduleTrackGap(track) {
+  if (!track) {
+    return 0;
+  }
+  const styles = getComputedStyle(track);
+  return Number.parseFloat(styles.rowGap || styles.gap || "0") || 0;
+}
+
+function getFirstScheduleCycleHeight(track) {
+  const firstCycle = track?.querySelector(".schedule-cycle");
+  if (!firstCycle) {
+    return 0;
+  }
+  return firstCycle.getBoundingClientRect().height + getScheduleTrackGap(track);
+}
+
 function getScheduleCycleHeight(track) {
   if (!track) {
     return 0;
@@ -422,6 +438,33 @@ function getScheduleCycleHeight(track) {
   return Math.max(0, secondRect.top - firstRect.top);
 }
 
+function shouldAutoScrollSchedule(cycleHeight) {
+  const viewportHeight = els.scheduleList.clientHeight;
+  return (
+    cycleHeight > viewportHeight + 2 ||
+    (state.items.length >= 6 && cycleHeight * 2 > viewportHeight + 2)
+  );
+}
+
+function prepareScheduleCycles(track) {
+  if (!track) {
+    return;
+  }
+
+  track.querySelectorAll('.schedule-cycle[aria-hidden="true"]').forEach((cycle) => cycle.remove());
+
+  const cycleHeight = getFirstScheduleCycleHeight(track);
+  if (!shouldAutoScrollSchedule(cycleHeight)) {
+    return;
+  }
+
+  const viewportHeight = els.scheduleList.clientHeight;
+  const cycleCount = Math.max(2, Math.ceil((viewportHeight + cycleHeight) / Math.max(cycleHeight, 1)) + 1);
+  for (let index = 1; index < cycleCount; index += 1) {
+    track.append(createScheduleCycle(state.items, true));
+  }
+}
+
 function applyScheduleOffset(track) {
   if (!track) {
     return;
@@ -432,7 +475,7 @@ function applyScheduleOffset(track) {
 function syncScheduleScroll(reset, previousOffset, signature) {
   const track = getScheduleTrack();
   const cycleHeight = getScheduleCycleHeight(track);
-  const isScrollable = cycleHeight > els.scheduleList.clientHeight + 2;
+  const isScrollable = shouldAutoScrollSchedule(cycleHeight);
 
   els.scheduleList.classList.toggle("is-scrollable", isScrollable);
   scheduleScroll.cycleHeight = cycleHeight;
@@ -458,7 +501,7 @@ function animateScheduleScroll(frameAt) {
   const track = getScheduleTrack();
   const cycleHeight = getScheduleCycleHeight(track);
 
-  if (cycleHeight > els.scheduleList.clientHeight + 2) {
+  if (shouldAutoScrollSchedule(cycleHeight)) {
     els.scheduleList.classList.add("is-scrollable");
     scheduleScroll.cycleHeight = cycleHeight;
 
