@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="google" content="notranslate" />
     <title>오늘 일정</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260611-loop-art" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260611-news3-art" />
   </head>
   <body>
     <main class="app-shell">
@@ -22,38 +22,51 @@
 
       <section class="layout">
         <section class="board">
-          <aside class="art-panel" aria-hidden="true">
-            <img id="artImage" alt="" />
-            <div class="art-caption">
-              <strong id="artTitle"></strong>
-              <span id="artArtist"></span>
-            </div>
-          </aside>
-
           <div id="scheduleList" class="schedule-list"></div>
         </section>
 
-        <section class="news-section">
-          <div class="news-head">
-            <div>
-              <p class="eyebrow">News Feed</p>
-              <h2>최신 뉴스</h2>
+        <section class="info-column">
+          <section class="news-section">
+            <div class="news-head">
+              <div>
+                <p class="eyebrow">News Feed</p>
+                <h2>최신 뉴스</h2>
+              </div>
+              <span id="newsUpdatedText" class="news-updated">불러오는 중</span>
             </div>
-            <span id="newsUpdatedText" class="news-updated">불러오는 중</span>
-          </div>
-          <div id="newsList" class="news-list"></div>
+            <div id="newsList" class="news-list"></div>
+          </section>
+
+          <section class="weather-section">
+            <div class="weather-head">
+              <div>
+                <p class="eyebrow">Weather</p>
+                <h2>대전 일기예보</h2>
+              </div>
+              <span id="weatherUpdatedText" class="weather-updated">불러오는 중</span>
+            </div>
+            <div id="weatherPanel" class="weather-panel"></div>
+          </section>
+
+          <section class="market-section">
+            <div class="market-head">
+              <div>
+                <p class="eyebrow">Market</p>
+                <h2>시장 현황</h2>
+              </div>
+              <span id="marketUpdatedText" class="market-updated">불러오는 중</span>
+            </div>
+            <div id="marketList" class="market-list"></div>
+          </section>
         </section>
 
-        <section class="market-section">
-          <div class="market-head">
-            <div>
-              <p class="eyebrow">Market</p>
-              <h2>시장 현황</h2>
-            </div>
-            <span id="marketUpdatedText" class="market-updated">불러오는 중</span>
+        <aside class="art-panel" aria-hidden="true">
+          <img id="artImage" alt="" />
+          <div class="art-caption">
+            <strong id="artTitle"></strong>
+            <span id="artArtist"></span>
           </div>
-          <div id="marketList" class="market-list"></div>
-        </section>
+        </aside>
       </section>
     </main>
 
@@ -77,6 +90,15 @@
       </article>
     </template>
 
+    <template id="weatherTemplate">
+      <article class="weather-card">
+        <div class="weather-day"></div>
+        <div class="weather-summary"></div>
+        <div class="weather-temps"></div>
+        <div class="weather-rain"></div>
+      </article>
+    </template>
+
     <template id="marketTemplate">
       <article class="market-card">
         <div class="market-card-head">
@@ -92,6 +114,6 @@
       </article>
     </template>
 
-    <script src="/static/app.js?v=20260611-loop-art"></script>
+    <script src="/static/app.js?v=20260611-news3-art"></script>
   </body>
 </html>

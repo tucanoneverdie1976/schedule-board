@@ -4,9 +4,11 @@ const state = {
 
 const SCHEDULE_REFRESH_MS = 5000;
 const NEWS_REFRESH_MS = 60000;
+const WEATHER_REFRESH_MS = 600000;
 const MARKET_REFRESH_MS = 60000;
 const ART_REFRESH_MS = 300000;
 const SCHEDULE_SCROLL_PX_PER_SECOND = 24;
+const ART_SOURCE = "Cleveland Museum of Art Open Access";
 const ARTWORKS = [
   {
     title: "Water Lilies (Agapanthus)",
@@ -68,6 +70,9 @@ const els = {
   newsList: document.querySelector("#newsList"),
   newsTemplate: document.querySelector("#newsTemplate"),
   newsUpdatedText: document.querySelector("#newsUpdatedText"),
+  weatherPanel: document.querySelector("#weatherPanel"),
+  weatherTemplate: document.querySelector("#weatherTemplate"),
+  weatherUpdatedText: document.querySelector("#weatherUpdatedText"),
   marketList: document.querySelector("#marketList"),
   marketTemplate: document.querySelector("#marketTemplate"),
   marketUpdatedText: document.querySelector("#marketUpdatedText"),
@@ -101,13 +106,40 @@ function formatNewsTime(value) {
   }).format(date);
 }
 
-function formatTodayTitle() {
+function formatForecastDay(value, index) {
+  if (index === 0) {
+    return "오늘";
+  }
+  if (index === 1) {
+    return "내일";
+  }
+  if (index === 2) {
+    return "모레";
+  }
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    return value || "";
+  }
   return new Intl.DateTimeFormat("ko-KR", {
+    month: "numeric",
+    day: "numeric",
+    weekday: "short",
+  }).format(date);
+}
+
+function formatTodayTitle() {
+  const now = new Date();
+  const dateText = new Intl.DateTimeFormat("ko-KR", {
     year: "numeric",
     month: "long",
     day: "numeric",
     weekday: "long",
-  }).format(new Date());
+  }).format(now);
+  const timeText = new Intl.DateTimeFormat("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(now);
+  return `${dateText} ${timeText}`;
 }
 
 function renderTodayTitle() {
@@ -197,6 +229,23 @@ async function loadMarkets() {
   }
 }
 
+async function loadWeather() {
+  if (!els.weatherPanel) {
+    return;
+  }
+  try {
+    const payload = await request("/api/weather");
+    renderWeather(payload.items || [], payload.updated_at || "", payload.error || "");
+  } catch (error) {
+    els.weatherPanel.innerHTML = "";
+    const empty = document.createElement("div");
+    empty.className = "empty-state weather-empty";
+    empty.textContent = "날씨 예보를 불러오지 못했습니다.";
+    els.weatherPanel.append(empty);
+    els.weatherUpdatedText.textContent = "연결 실패";
+  }
+}
+
 function createScheduleCard(item, index) {
   const card = els.template.content.firstElementChild.cloneNode(true);
   card.classList.toggle("done", item.done);
@@ -267,7 +316,7 @@ function renderNews(items, updatedAt) {
     return;
   }
 
-  for (const item of items.slice(0, 2)) {
+  for (const item of items.slice(0, 3)) {
     const card = els.newsTemplate.content.firstElementChild.cloneNode(true);
     const title = card.querySelector(".news-title");
     title.textContent = item.title || "뉴스";
@@ -276,6 +325,31 @@ function renderNews(items, updatedAt) {
     card.querySelector(".news-meta").textContent = metaParts.join(" · ");
     els.newsList.append(card);
   }
+}
+
+function renderWeather(items, updatedAt, errorText) {
+  els.weatherPanel.innerHTML = "";
+  els.weatherUpdatedText.textContent = updatedAt ? `${formatNewsTime(updatedAt)} 갱신` : "대기 중";
+  els.weatherUpdatedText.title = errorText || "";
+
+  if (!items.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state weather-empty";
+    empty.textContent = "표시할 날씨 예보가 없습니다.";
+    els.weatherPanel.append(empty);
+    return;
+  }
+
+  items.slice(0, 3).forEach((item, index) => {
+    const card = els.weatherTemplate.content.firstElementChild.cloneNode(true);
+    card.classList.toggle("weather-today", index === 0);
+    card.querySelector(".weather-day").textContent = formatForecastDay(item.date, index);
+    card.querySelector(".weather-summary").textContent = item.summary || "예보";
+    card.querySelector(".weather-temps").textContent = `최저 ${item.temp_min ?? "-"}° / 최고 ${item.temp_max ?? "-"}°`;
+    card.querySelector(".weather-rain").textContent =
+      `강수 ${item.precipitation_probability ?? "-"}% · ${item.precipitation_sum ?? "-"}mm`;
+    els.weatherPanel.append(card);
+  });
 }
 
 function renderMarkets(items, updatedAt, errorText) {
@@ -327,7 +401,7 @@ function refreshArt() {
     els.artTitle.textContent = artwork.title;
   }
   if (els.artArtist) {
-    els.artArtist.textContent = artwork.artist;
+    els.artArtist.textContent = [artwork.artist, ART_SOURCE].filter(Boolean).join(" · ");
   }
 }
 
@@ -421,11 +495,13 @@ if (els.artImage) {
 renderTodayTitle();
 loadSchedules();
 loadNews();
+loadWeather();
 loadMarkets();
 refreshArt();
 requestAnimationFrame(animateScheduleScroll);
-setInterval(renderTodayTitle, 60000);
+setInterval(renderTodayTitle, 1000);
 setInterval(loadSchedules, SCHEDULE_REFRESH_MS);
 setInterval(loadNews, NEWS_REFRESH_MS);
+setInterval(loadWeather, WEATHER_REFRESH_MS);
 setInterval(loadMarkets, MARKET_REFRESH_MS);
 setInterval(refreshArt, ART_REFRESH_MS);

@@ -35,7 +35,7 @@ NEWS_FEED_URL = os.environ.get(
     "NEWS_FEED_URL",
     "https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko",
 )
-NEWS_DISPLAY_LIMIT = int(os.environ.get("NEWS_DISPLAY_LIMIT", "2"))
+NEWS_DISPLAY_LIMIT = int(os.environ.get("NEWS_DISPLAY_LIMIT", "3"))
 NEWS_POOL_LIMIT = int(os.environ.get("NEWS_POOL_LIMIT", "20"))
 NEWS_CACHE_SECONDS = int(os.environ.get("NEWS_CACHE_SECONDS", "60"))
 NEWS_FETCH_TIMEOUT_SECONDS = float(os.environ.get("NEWS_FETCH_TIMEOUT_SECONDS", "8"))
@@ -53,6 +53,14 @@ NAVER_MARKET_INDEX_API_URL = os.environ.get(
 )
 MARKET_LOCK = threading.Lock()
 MARKET_CACHE: dict[str, Any] = {"items": [], "fetched_at": 0.0, "updated_at": "", "error": ""}
+WEATHER_CACHE_SECONDS = int(os.environ.get("WEATHER_CACHE_SECONDS", "600"))
+WEATHER_FETCH_TIMEOUT_SECONDS = float(os.environ.get("WEATHER_FETCH_TIMEOUT_SECONDS", "8"))
+WEATHER_API_URL = os.environ.get(
+    "WEATHER_API_URL",
+    "https://wttr.in/Daejeon?format=j1",
+)
+WEATHER_LOCK = threading.Lock()
+WEATHER_CACHE: dict[str, Any] = {"items": [], "fetched_at": 0.0, "updated_at": "", "error": ""}
 INDEX_NAMES = {
     "KOSPI": "KOSPI",
     "KOSDAQ": "KOSDAQ",
@@ -253,7 +261,7 @@ def fetch_news_items() -> dict[str, Any]:
         }
 
 
-def read_json_url(url: str, referer: str = "") -> dict[str, Any]:
+def read_json_url(url: str, referer: str = "", timeout: float = MARKET_FETCH_TIMEOUT_SECONDS) -> dict[str, Any]:
     headers = {
         "Accept": "application/json, text/plain, */*",
         "User-Agent": "ScheduleBoard/1.0 Mozilla/5.0",
@@ -261,9 +269,129 @@ def read_json_url(url: str, referer: str = "") -> dict[str, Any]:
     if referer:
         headers["Referer"] = referer
     req = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(req, timeout=MARKET_FETCH_TIMEOUT_SECONDS) as resp:
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
         charset = resp.headers.get_content_charset() or "utf-8"
         return json.loads(resp.read().decode(charset, errors="replace"))
+
+
+def format_weather_number(value: Any, places: int = 1) -> str:
+    if value is None:
+        return "-"
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return "-"
+    return f"{number:.{places}f}"
+
+
+def weather_summary_label(value: Any) -> str:
+    text = str(value or "").strip()
+    normalized = text.lower()
+    if "thunder" in normalized:
+        return "천둥번개"
+    if "snow" in normalized or "sleet" in normalized:
+        return "눈"
+    if "shower" in normalized:
+        return "소나기"
+    if "rain" in normalized or "drizzle" in normalized:
+        return "비"
+    if "mist" in normalized or "fog" in normalized or "haze" in normalized:
+        return "안개"
+    if "overcast" in normalized:
+        return "흐림"
+    if "cloud" in normalized:
+        return "구름 조금"
+    if "sunny" in normalized or "clear" in normalized:
+        return "맑음"
+    return text or "예보"
+
+
+def hourly_weather_desc(hourly: list[dict[str, Any]]) -> str:
+    if not hourly:
+        return ""
+    preferred = next((item for item in hourly if str(item.get("time") or "") == "1200"), hourly[len(hourly) // 2])
+    descriptions = preferred.get("weatherDesc") or []
+    if descriptions and isinstance(descriptions[0], dict):
+        return str(descriptions[0].get("value") or "")
+    return ""
+
+
+def max_hourly_number(hourly: list[dict[str, Any]], key: str) -> float:
+    values: list[float] = []
+    for item in hourly:
+        try:
+            values.append(float(item.get(key) or 0))
+        except (TypeError, ValueError):
+            pass
+    return max(values, default=0.0)
+
+
+def sum_hourly_number(hourly: list[dict[str, Any]], key: str) -> float:
+    total = 0.0
+    for item in hourly:
+        try:
+            total += float(item.get(key) or 0)
+        except (TypeError, ValueError):
+            pass
+    return total
+
+
+def fetch_weather_items() -> dict[str, Any]:
+    now_ts = datetime.now().timestamp()
+    with WEATHER_LOCK:
+        cached_age = now_ts - float(WEATHER_CACHE.get("fetched_at") or 0)
+        cached_items = list(WEATHER_CACHE.get("items") or [])
+        cached_updated_at = str(WEATHER_CACHE.get("updated_at") or "")
+        cached_error = str(WEATHER_CACHE.get("error") or "")
+        is_cache_fresh = bool(cached_items) and cached_age < WEATHER_CACHE_SECONDS
+    if is_cache_fresh:
+        return {
+            "location": "대전",
+            "items": cached_items,
+            "updated_at": cached_updated_at,
+            "cached": True,
+            "error": cached_error,
+        }
+
+    try:
+        payload = read_json_url(WEATHER_API_URL, timeout=WEATHER_FETCH_TIMEOUT_SECONDS)
+        items: list[dict[str, str]] = []
+        for raw_day in list(payload.get("weather") or [])[:4]:
+            hourly = [item for item in raw_day.get("hourly") or [] if isinstance(item, dict)]
+            precip_sum = raw_day.get("totalPrecipMM")
+            if precip_sum is None:
+                precip_sum = sum_hourly_number(hourly, "precipMM")
+            items.append(
+                {
+                    "date": str(raw_day.get("date") or ""),
+                    "summary": weather_summary_label(hourly_weather_desc(hourly)),
+                    "temp_min": format_weather_number(raw_day.get("mintempC"), places=0),
+                    "temp_max": format_weather_number(raw_day.get("maxtempC"), places=0),
+                    "precipitation_sum": format_weather_number(precip_sum),
+                    "precipitation_probability": format_weather_number(
+                        max_hourly_number(hourly, "chanceofrain"),
+                        places=0,
+                    ),
+                }
+            )
+
+        updated_at = now_iso()
+        with WEATHER_LOCK:
+            WEATHER_CACHE.update({"items": items, "fetched_at": now_ts, "updated_at": updated_at, "error": ""})
+        return {"location": "대전", "items": items, "updated_at": updated_at, "cached": False, "error": ""}
+    except (OSError, urllib.error.URLError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+        error = str(exc)
+        with WEATHER_LOCK:
+            WEATHER_CACHE["error"] = error
+            cached_items = list(WEATHER_CACHE.get("items") or [])
+            cached_updated_at = str(WEATHER_CACHE.get("updated_at") or "")
+        return {
+            "location": "대전",
+            "items": cached_items,
+            "updated_at": cached_updated_at,
+            "cached": True,
+            "error": error,
+        }
 
 
 def parse_number(value: Any) -> float:
@@ -755,6 +883,9 @@ class ScheduleHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/news":
             self.send_json(fetch_news_items())
+            return
+        if parsed.path == "/api/weather":
+            self.send_json(fetch_weather_items())
             return
         if parsed.path == "/api/markets":
             self.send_json(fetch_market_items())

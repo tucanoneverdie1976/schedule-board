@@ -1,5 +1,6 @@
 :root {
   color-scheme: light;
+  --transparent-cursor: url("data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==") 0 0;
   --bg: #f7f8f5;
   --surface: #ffffff;
   --surface-2: #eef4f1;
@@ -19,18 +20,22 @@
 }
 
 html {
+  height: 100%;
   min-height: 100%;
+  cursor: var(--transparent-cursor), none !important;
 }
 
 html,
 body,
 body * {
-  cursor: none !important;
+  cursor: var(--transparent-cursor), none !important;
 }
 
 body {
   margin: 0;
+  height: 100vh;
   min-height: 100vh;
+  overflow: hidden;
   background: var(--bg);
   color: var(--ink);
   font-family: "Segoe UI", "Malgun Gothic", system-ui, sans-serif;
@@ -43,12 +48,13 @@ textarea {
 }
 
 button {
-  cursor: none;
+  cursor: var(--transparent-cursor), none;
 }
 
 .app-shell {
-  width: min(1220px, calc(100% - 32px));
-  min-height: 100vh;
+  width: calc(100% - 32px);
+  height: 100vh;
+  min-height: 0;
   margin: 0 auto;
   padding: 24px 0;
   display: grid;
@@ -122,8 +128,10 @@ h2 {
 
 .layout {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 4fr) minmax(0, 6fr);
+  grid-template-rows: minmax(0, 2fr) minmax(0, 1fr);
   gap: 18px;
+  height: 100%;
   min-height: 0;
 }
 
@@ -232,14 +240,14 @@ textarea:focus {
 }
 
 .board {
-  position: relative;
-  isolation: isolate;
+  grid-column: 1;
+  grid-row: 1;
   min-height: 0;
   padding: 18px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: #f8fbf8;
+  background: var(--surface);
 }
 
 .filters {
@@ -263,7 +271,6 @@ textarea:focus {
 
 .schedule-list {
   position: relative;
-  z-index: 1;
   display: block;
   flex: 1 1 auto;
   min-height: 0;
@@ -295,25 +302,37 @@ textarea:focus {
   mask-image: linear-gradient(to bottom, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
 }
 
+.info-column {
+  grid-column: 2;
+  grid-row: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 18px;
+}
+
 .art-panel {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
+  grid-column: 1 / -1;
+  grid-row: 2;
+  position: relative;
   min-height: 0;
   margin: 0;
   overflow: hidden;
-  border: 0;
-  border-radius: inherit;
-  background:
-    linear-gradient(135deg, rgba(219, 238, 232, 0.98), rgba(247, 232, 211, 0.88) 54%, rgba(223, 232, 242, 0.96));
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #e7ece8;
+  box-shadow: var(--shadow);
   pointer-events: none;
 }
 
 .art-panel::after {
   content: "";
   position: absolute;
-  inset: 0;
-  background: rgba(248, 251, 248, 0.54);
+  inset: auto 0 0;
+  z-index: 1;
+  display: block;
+  height: 45%;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(10, 16, 14, 0.54));
   pointer-events: none;
 }
 
@@ -325,8 +344,8 @@ textarea:focus {
   display: block;
   object-fit: cover;
   object-position: center;
-  opacity: 0.52;
-  filter: brightness(1.18) saturate(0.82) contrast(0.86);
+  opacity: 1;
+  filter: none;
   transition: opacity 0.45s ease;
 }
 
@@ -336,7 +355,15 @@ textarea:focus {
 }
 
 .art-caption {
-  display: none;
+  position: absolute;
+  left: 18px;
+  bottom: 16px;
+  z-index: 2;
+  display: grid;
+  max-width: min(620px, calc(100% - 36px));
+  gap: 4px;
+  color: #fff;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.65);
 }
 
 .art-caption strong {
@@ -351,15 +378,21 @@ textarea:focus {
 }
 
 .news-section,
+.weather-section,
 .market-section {
+  min-height: 0;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
   box-shadow: var(--shadow);
   padding: 18px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .news-head,
+.weather-head,
 .market-head {
   display: flex;
   align-items: center;
@@ -369,6 +402,7 @@ textarea:focus {
 }
 
 .news-updated,
+.weather-updated,
 .market-updated {
   color: var(--muted);
   font-size: 0.86rem;
@@ -378,7 +412,9 @@ textarea:focus {
 
 .news-list {
   display: grid;
+  min-height: 0;
   gap: 10px;
+  overflow: hidden;
 }
 
 .news-card {
@@ -415,16 +451,65 @@ textarea:focus {
   min-height: 90px;
 }
 
+.weather-panel {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.weather-card {
+  display: grid;
+  gap: 5px;
+  min-height: 92px;
+  padding: 12px 13px;
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--accent);
+  border-radius: 8px;
+  background: #fbfcfb;
+}
+
+.weather-today {
+  border-left-color: var(--warn);
+  background: #fffdf9;
+}
+
+.weather-day {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+
+.weather-summary {
+  color: var(--ink);
+  font-size: 0.98rem;
+  font-weight: 900;
+}
+
+.weather-temps,
+.weather-rain {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.weather-empty {
+  min-height: 92px;
+}
+
 .market-list {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  flex: 1 1 auto;
   gap: 10px;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .market-card {
   display: grid;
   gap: 8px;
-  min-height: 126px;
+  min-height: 0;
   padding: 13px 14px;
   border: 1px solid var(--line);
   border-left: 5px solid var(--muted);
@@ -508,14 +593,13 @@ textarea:focus {
   border: 1px solid var(--line);
   border-left: 5px solid var(--accent);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.82);
+  background: var(--surface);
   box-shadow: 0 8px 20px rgba(31, 46, 41, 0.06);
-  backdrop-filter: blur(2px);
 }
 
 .schedule-card.done {
   border-left-color: var(--blue);
-  background: rgba(248, 250, 252, 0.82);
+  background: #f8fafc;
 }
 
 .schedule-card.done h3,
@@ -595,7 +679,20 @@ textarea:focus {
 
   .layout {
     display: grid;
-    grid-template-rows: auto;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    height: auto;
+  }
+
+  .board,
+  .info-column,
+  .art-panel {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .info-column {
+    grid-template-rows: auto auto;
   }
 
   .filters {
@@ -615,6 +712,14 @@ textarea:focus {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .weather-panel {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .art-panel {
+    min-height: 280px;
+  }
+
 }
 
 @media (max-width: 520px) {
@@ -627,16 +732,19 @@ textarea:focus {
   }
 
   .news-head,
+  .weather-head,
   .market-head {
     align-items: stretch;
     flex-direction: column;
   }
 
   .news-updated,
+  .weather-updated,
   .market-updated {
     text-align: left;
   }
 
+  .weather-panel,
   .market-list {
     grid-template-columns: 1fr;
   }
