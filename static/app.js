@@ -7,8 +7,6 @@ const NEWS_REFRESH_MS = 60000;
 const MARKET_REFRESH_MS = 60000;
 const ART_REFRESH_MS = 300000;
 const SCHEDULE_SCROLL_PX_PER_SECOND = 24;
-const SCHEDULE_SCROLL_TOP_PAUSE_MS = 3000;
-const SCHEDULE_SCROLL_BOTTOM_PAUSE_MS = 4500;
 const ARTWORKS = [
   {
     title: "Water Lilies (Agapanthus)",
@@ -54,23 +52,19 @@ const ARTWORKS = [
 
 let activeArtIndex = -1;
 const scheduleScroll = {
-  direction: 1,
+  cycleHeight: 0,
   hasRendered: false,
   lastFrameAt: 0,
   offset: 0,
-  pauseUntil: 0,
   signature: "",
 };
 
 const els = {
   apiStatus: document.querySelector("#apiStatus"),
   statusText: document.querySelector("#statusText"),
+  pageTitle: document.querySelector("#pageTitle"),
   scheduleList: document.querySelector("#scheduleList"),
   template: document.querySelector("#scheduleTemplate"),
-  totalCount: document.querySelector("#totalCount"),
-  openCount: document.querySelector("#openCount"),
-  boardTitle: document.querySelector("#boardTitle"),
-  todayLabel: document.querySelector("#todayLabel"),
   newsList: document.querySelector("#newsList"),
   newsTemplate: document.querySelector("#newsTemplate"),
   newsUpdatedText: document.querySelector("#newsUpdatedText"),
@@ -105,6 +99,23 @@ function formatNewsTime(value) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
+}
+
+function formatTodayTitle() {
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "long",
+  }).format(new Date());
+}
+
+function renderTodayTitle() {
+  const title = formatTodayTitle();
+  if (els.pageTitle) {
+    els.pageTitle.textContent = title;
+  }
+  document.title = title;
 }
 
 function setStatus(ok, text) {
@@ -186,23 +197,42 @@ async function loadMarkets() {
   }
 }
 
+function createScheduleCard(item, index) {
+  const card = els.template.content.firstElementChild.cloneNode(true);
+  card.classList.toggle("done", item.done);
+  card.querySelector(".schedule-number").textContent = index + 1;
+  card.querySelector("h3").textContent = item.title;
+  card.querySelector(".card-time").textContent = `${formatDateLabel(item.date)}${item.time ? ` · ${item.time}` : ""}`;
+
+  const notes = card.querySelector(".card-notes");
+  notes.textContent = item.notes || "";
+  notes.hidden = !notes.textContent;
+
+  return card;
+}
+
+function createScheduleCycle(items, hidden = false) {
+  const cycle = document.createElement("div");
+  cycle.className = "schedule-cycle";
+  if (hidden) {
+    cycle.setAttribute("aria-hidden", "true");
+  }
+
+  items.forEach((item, index) => {
+    cycle.append(createScheduleCard(item, index));
+  });
+
+  return cycle;
+}
+
 function render() {
   scheduleScroll.hasRendered = true;
   const previousOffset = scheduleScroll.offset;
   const nextSignature = getScheduleSignature(state.items);
   const scheduleChanged = nextSignature !== scheduleScroll.signature;
 
+  renderTodayTitle();
   els.scheduleList.innerHTML = "";
-  els.boardTitle.textContent = "전체 일정";
-  els.todayLabel.textContent = new Intl.DateTimeFormat("ko-KR", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    weekday: "long",
-  }).format(new Date());
-
-  els.totalCount.textContent = state.items.length;
-  els.openCount.textContent = state.items.filter((item) => !item.done).length;
 
   if (!state.items.length) {
     const empty = document.createElement("div");
@@ -215,20 +245,8 @@ function render() {
 
   const track = document.createElement("div");
   track.className = "schedule-track";
-
-  state.items.forEach((item, index) => {
-    const card = els.template.content.firstElementChild.cloneNode(true);
-    card.classList.toggle("done", item.done);
-    card.querySelector(".schedule-number").textContent = index + 1;
-    card.querySelector("h3").textContent = item.title;
-    card.querySelector(".card-time").textContent = `${formatDateLabel(item.date)}${item.time ? ` · ${item.time}` : ""}`;
-
-    const notes = card.querySelector(".card-notes");
-    notes.textContent = item.notes || "";
-    notes.hidden = !notes.textContent;
-
-    track.append(card);
-  });
+  track.append(createScheduleCycle(state.items));
+  track.append(createScheduleCycle(state.items, true));
 
   els.scheduleList.append(track);
 
@@ -317,6 +335,19 @@ function getScheduleTrack() {
   return els.scheduleList.querySelector(".schedule-track");
 }
 
+function getScheduleCycleHeight(track) {
+  if (!track) {
+    return 0;
+  }
+  const cycles = track.querySelectorAll(".schedule-cycle");
+  if (cycles.length < 2) {
+    return cycles[0]?.scrollHeight || 0;
+  }
+  const firstRect = cycles[0].getBoundingClientRect();
+  const secondRect = cycles[1].getBoundingClientRect();
+  return Math.max(0, secondRect.top - firstRect.top);
+}
+
 function applyScheduleOffset(track) {
   if (!track) {
     return;
@@ -326,59 +357,47 @@ function applyScheduleOffset(track) {
 
 function syncScheduleScroll(reset, previousOffset, signature) {
   const track = getScheduleTrack();
-  const maxScroll = track ? Math.max(0, track.scrollHeight - els.scheduleList.clientHeight) : 0;
-  const isScrollable = maxScroll > 2;
+  const cycleHeight = getScheduleCycleHeight(track);
+  const isScrollable = cycleHeight > els.scheduleList.clientHeight + 2;
 
   els.scheduleList.classList.toggle("is-scrollable", isScrollable);
+  scheduleScroll.cycleHeight = cycleHeight;
   scheduleScroll.signature = signature;
 
   if (!isScrollable) {
     scheduleScroll.offset = 0;
-    scheduleScroll.direction = 1;
-    scheduleScroll.pauseUntil = 0;
     applyScheduleOffset(track);
     return;
   }
 
   if (reset) {
     scheduleScroll.offset = 0;
-    scheduleScroll.direction = 1;
-    scheduleScroll.pauseUntil = performance.now() + SCHEDULE_SCROLL_TOP_PAUSE_MS;
     applyScheduleOffset(track);
     return;
   }
 
-  scheduleScroll.offset = Math.min(previousOffset, maxScroll);
+  scheduleScroll.offset = cycleHeight ? previousOffset % cycleHeight : 0;
   applyScheduleOffset(track);
 }
 
 function animateScheduleScroll(frameAt) {
   const track = getScheduleTrack();
-  const maxScroll = track ? Math.max(0, track.scrollHeight - els.scheduleList.clientHeight) : 0;
+  const cycleHeight = getScheduleCycleHeight(track);
 
-  if (maxScroll > 2) {
+  if (cycleHeight > els.scheduleList.clientHeight + 2) {
     els.scheduleList.classList.add("is-scrollable");
+    scheduleScroll.cycleHeight = cycleHeight;
 
     if (!scheduleScroll.lastFrameAt) {
       scheduleScroll.lastFrameAt = frameAt;
     }
 
     const deltaMs = Math.min(80, frameAt - scheduleScroll.lastFrameAt);
-    if (frameAt >= scheduleScroll.pauseUntil) {
-      scheduleScroll.offset += scheduleScroll.direction * SCHEDULE_SCROLL_PX_PER_SECOND * (deltaMs / 1000);
-
-      if (scheduleScroll.offset >= maxScroll - 1) {
-        scheduleScroll.offset = maxScroll;
-        scheduleScroll.direction = -1;
-        scheduleScroll.pauseUntil = frameAt + SCHEDULE_SCROLL_BOTTOM_PAUSE_MS;
-      } else if (scheduleScroll.direction < 0 && scheduleScroll.offset <= 1) {
-        scheduleScroll.offset = 0;
-        scheduleScroll.direction = 1;
-        scheduleScroll.pauseUntil = frameAt + SCHEDULE_SCROLL_TOP_PAUSE_MS;
-      }
-
-      applyScheduleOffset(track);
+    scheduleScroll.offset += SCHEDULE_SCROLL_PX_PER_SECOND * (deltaMs / 1000);
+    if (scheduleScroll.offset >= cycleHeight) {
+      scheduleScroll.offset %= cycleHeight;
     }
+    applyScheduleOffset(track);
   } else {
     els.scheduleList.classList.remove("is-scrollable");
     scheduleScroll.offset = 0;
@@ -399,11 +418,13 @@ if (els.artImage) {
   });
 }
 
+renderTodayTitle();
 loadSchedules();
 loadNews();
 loadMarkets();
 refreshArt();
 requestAnimationFrame(animateScheduleScroll);
+setInterval(renderTodayTitle, 60000);
 setInterval(loadSchedules, SCHEDULE_REFRESH_MS);
 setInterval(loadNews, NEWS_REFRESH_MS);
 setInterval(loadMarkets, MARKET_REFRESH_MS);

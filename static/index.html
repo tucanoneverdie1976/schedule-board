@@ -4,15 +4,15 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="google" content="notranslate" />
-    <title>일정 게시판</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260611-scroll2" />
+    <title>오늘 일정</title>
+    <link rel="stylesheet" href="/static/styles.css?v=20260611-loop-art" />
   </head>
   <body>
     <main class="app-shell">
       <header class="topbar">
         <div>
           <p class="eyebrow">Porcupine Schedule</p>
-          <h1>일정 게시판</h1>
+          <h1 id="pageTitle">오늘 일정</h1>
         </div>
         <div class="status-strip" aria-live="polite">
           <span id="apiStatus" class="status-dot"></span>
@@ -22,26 +22,6 @@
 
       <section class="layout">
         <section class="board">
-          <div class="board-head">
-            <div>
-              <p class="eyebrow" id="todayLabel">오늘</p>
-              <h2 id="boardTitle">전체 일정</h2>
-            </div>
-          </div>
-
-          <div class="summary-row" aria-live="polite">
-            <div>
-              <strong id="totalCount">0</strong>
-              <span>개 일정</span>
-            </div>
-            <div>
-              <strong id="openCount">0</strong>
-              <span>개 진행 중</span>
-            </div>
-          </div>
-
-          <div id="scheduleList" class="schedule-list"></div>
-
           <aside class="art-panel" aria-hidden="true">
             <img id="artImage" alt="" />
             <div class="art-caption">
@@ -49,6 +29,8 @@
               <span id="artArtist"></span>
             </div>
           </aside>
+
+          <div id="scheduleList" class="schedule-list"></div>
         </section>
 
         <section class="news-section">
@@ -110,6 +92,6 @@
       </article>
     </template>
 
-    <script src="/static/app.js?v=20260611-scroll2"></script>
+    <script src="/static/app.js?v=20260611-loop-art"></script>
   </body>
 </html>
