@@ -6,7 +6,7 @@ const SCHEDULE_REFRESH_MS = 5000;
 const NEWS_REFRESH_MS = 60000;
 const MARKET_REFRESH_MS = 60000;
 const ART_REFRESH_MS = 300000;
-const SCHEDULE_SCROLL_PX_PER_SECOND = 14;
+const SCHEDULE_SCROLL_PX_PER_SECOND = 24;
 const SCHEDULE_SCROLL_TOP_PAUSE_MS = 3000;
 const SCHEDULE_SCROLL_BOTTOM_PAUSE_MS = 4500;
 const ARTWORKS = [
@@ -55,7 +55,9 @@ const ARTWORKS = [
 let activeArtIndex = -1;
 const scheduleScroll = {
   direction: 1,
+  hasRendered: false,
   lastFrameAt: 0,
+  offset: 0,
   pauseUntil: 0,
   signature: "",
 };
@@ -137,8 +139,13 @@ async function request(path, options = {}) {
 async function loadSchedules() {
   try {
     const payload = await request("/api/schedules?range=all");
-    state.items = payload.items || [];
-    render();
+    const items = payload.items || [];
+    const nextSignature = getScheduleSignature(items);
+    const shouldRender = !scheduleScroll.hasRendered || nextSignature !== scheduleScroll.signature;
+    state.items = items;
+    if (shouldRender) {
+      render();
+    }
     setStatus(true, "연결됨");
   } catch (error) {
     setStatus(false, error.message);
@@ -180,7 +187,8 @@ async function loadMarkets() {
 }
 
 function render() {
-  const previousScrollTop = els.scheduleList.scrollTop;
+  scheduleScroll.hasRendered = true;
+  const previousOffset = scheduleScroll.offset;
   const nextSignature = getScheduleSignature(state.items);
   const scheduleChanged = nextSignature !== scheduleScroll.signature;
 
@@ -205,6 +213,9 @@ function render() {
     return;
   }
 
+  const track = document.createElement("div");
+  track.className = "schedule-track";
+
   state.items.forEach((item, index) => {
     const card = els.template.content.firstElementChild.cloneNode(true);
     card.classList.toggle("done", item.done);
@@ -216,11 +227,13 @@ function render() {
     notes.textContent = item.notes || "";
     notes.hidden = !notes.textContent;
 
-    els.scheduleList.append(card);
+    track.append(card);
   });
 
+  els.scheduleList.append(track);
+
   requestAnimationFrame(() => {
-    syncScheduleScroll(scheduleChanged, previousScrollTop, nextSignature);
+    syncScheduleScroll(scheduleChanged, previousOffset, nextSignature);
   });
 }
 
@@ -300,32 +313,48 @@ function refreshArt() {
   }
 }
 
-function syncScheduleScroll(reset, previousScrollTop, signature) {
-  const maxScroll = Math.max(0, els.scheduleList.scrollHeight - els.scheduleList.clientHeight);
+function getScheduleTrack() {
+  return els.scheduleList.querySelector(".schedule-track");
+}
+
+function applyScheduleOffset(track) {
+  if (!track) {
+    return;
+  }
+  track.style.transform = `translate3d(0, ${-scheduleScroll.offset}px, 0)`;
+}
+
+function syncScheduleScroll(reset, previousOffset, signature) {
+  const track = getScheduleTrack();
+  const maxScroll = track ? Math.max(0, track.scrollHeight - els.scheduleList.clientHeight) : 0;
   const isScrollable = maxScroll > 2;
 
   els.scheduleList.classList.toggle("is-scrollable", isScrollable);
   scheduleScroll.signature = signature;
 
   if (!isScrollable) {
-    els.scheduleList.scrollTop = 0;
+    scheduleScroll.offset = 0;
     scheduleScroll.direction = 1;
     scheduleScroll.pauseUntil = 0;
+    applyScheduleOffset(track);
     return;
   }
 
   if (reset) {
-    els.scheduleList.scrollTop = 0;
+    scheduleScroll.offset = 0;
     scheduleScroll.direction = 1;
     scheduleScroll.pauseUntil = performance.now() + SCHEDULE_SCROLL_TOP_PAUSE_MS;
+    applyScheduleOffset(track);
     return;
   }
 
-  els.scheduleList.scrollTop = Math.min(previousScrollTop, maxScroll);
+  scheduleScroll.offset = Math.min(previousOffset, maxScroll);
+  applyScheduleOffset(track);
 }
 
 function animateScheduleScroll(frameAt) {
-  const maxScroll = Math.max(0, els.scheduleList.scrollHeight - els.scheduleList.clientHeight);
+  const track = getScheduleTrack();
+  const maxScroll = track ? Math.max(0, track.scrollHeight - els.scheduleList.clientHeight) : 0;
 
   if (maxScroll > 2) {
     els.scheduleList.classList.add("is-scrollable");
@@ -336,20 +365,24 @@ function animateScheduleScroll(frameAt) {
 
     const deltaMs = Math.min(80, frameAt - scheduleScroll.lastFrameAt);
     if (frameAt >= scheduleScroll.pauseUntil) {
-      els.scheduleList.scrollTop += scheduleScroll.direction * SCHEDULE_SCROLL_PX_PER_SECOND * (deltaMs / 1000);
+      scheduleScroll.offset += scheduleScroll.direction * SCHEDULE_SCROLL_PX_PER_SECOND * (deltaMs / 1000);
 
-      if (els.scheduleList.scrollTop >= maxScroll - 1) {
-        els.scheduleList.scrollTop = maxScroll;
+      if (scheduleScroll.offset >= maxScroll - 1) {
+        scheduleScroll.offset = maxScroll;
         scheduleScroll.direction = -1;
         scheduleScroll.pauseUntil = frameAt + SCHEDULE_SCROLL_BOTTOM_PAUSE_MS;
-      } else if (els.scheduleList.scrollTop <= 1) {
-        els.scheduleList.scrollTop = 0;
+      } else if (scheduleScroll.direction < 0 && scheduleScroll.offset <= 1) {
+        scheduleScroll.offset = 0;
         scheduleScroll.direction = 1;
         scheduleScroll.pauseUntil = frameAt + SCHEDULE_SCROLL_TOP_PAUSE_MS;
       }
+
+      applyScheduleOffset(track);
     }
   } else {
     els.scheduleList.classList.remove("is-scrollable");
+    scheduleScroll.offset = 0;
+    applyScheduleOffset(track);
   }
 
   scheduleScroll.lastFrameAt = frameAt;
