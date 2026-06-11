@@ -18,6 +18,10 @@
   box-sizing: border-box;
 }
 
+html {
+  min-height: 100%;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -37,9 +41,13 @@ button {
 }
 
 .app-shell {
-  width: min(1180px, calc(100% - 32px));
+  width: min(1220px, calc(100% - 32px));
+  min-height: 100vh;
   margin: 0 auto;
   padding: 24px 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 18px;
 }
 
 .topbar,
@@ -54,7 +62,6 @@ button {
 .topbar {
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 18px;
 }
 
 .eyebrow {
@@ -111,7 +118,9 @@ h2 {
 
 .layout {
   display: grid;
+  grid-template-rows: minmax(0, 1fr) auto auto;
   gap: 18px;
+  min-height: 0;
 }
 
 .panel,
@@ -219,8 +228,11 @@ textarea:focus {
 }
 
 .board {
-  min-height: 620px;
+  min-height: 0;
   padding: 18px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .board-head {
@@ -266,8 +278,72 @@ textarea:focus {
 
 .schedule-list {
   display: grid;
+  align-content: start;
   gap: 10px;
   margin-top: 14px;
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.art-panel {
+  position: relative;
+  flex: 1 1 260px;
+  min-height: 220px;
+  margin-top: 14px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(219, 238, 232, 0.98), rgba(247, 232, 211, 0.88) 54%, rgba(223, 232, 242, 0.96));
+}
+
+.art-panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(24, 33, 31, 0), rgba(24, 33, 31, 0.18));
+  pointer-events: none;
+}
+
+.art-panel img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: center;
+  opacity: 1;
+  transition: opacity 0.45s ease;
+}
+
+.art-panel img.is-loading,
+.art-panel img.is-hidden {
+  opacity: 0;
+}
+
+.art-caption {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 14px;
+  z-index: 2;
+  display: grid;
+  gap: 3px;
+  color: #fff;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+}
+
+.art-caption strong {
+  font-size: 1.02rem;
+  line-height: 1.2;
+}
+
+.art-caption span {
+  font-size: 0.78rem;
+  font-weight: 800;
+  opacity: 0.86;
 }
 
 .news-section,
@@ -502,6 +578,8 @@ textarea:focus {
   .app-shell {
     width: min(100% - 20px, 720px);
     padding: 16px 0;
+    display: block;
+    min-height: 100vh;
   }
 
   .topbar,
@@ -513,6 +591,7 @@ textarea:focus {
 
   .layout {
     display: grid;
+    grid-template-rows: auto;
   }
 
   .filters {
@@ -530,6 +609,10 @@ textarea:focus {
 
   .market-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .art-panel {
+    min-height: 180px;
   }
 }
 
@@ -555,5 +638,39 @@ textarea:focus {
 
   .market-list {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 900px) and (min-height: 900px) {
+  html,
+  body {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .app-shell {
+    height: 100dvh;
+    padding: 22px 0 18px;
+  }
+
+  .topbar {
+    min-height: 72px;
+  }
+
+  .board {
+    padding: 20px;
+  }
+
+  .schedule-card {
+    min-height: 90px;
+  }
+
+  .art-panel {
+    min-height: 260px;
+  }
+
+  .news-section,
+  .market-section {
+    padding: 16px 18px;
   }
 }

@@ -5,6 +5,19 @@ const state = {
 const SCHEDULE_REFRESH_MS = 5000;
 const NEWS_REFRESH_MS = 60000;
 const MARKET_REFRESH_MS = 60000;
+const ART_REFRESH_MS = 300000;
+const ART_PHOTOS = [
+  { id: "10", title: "고요한 숲", artist: "오늘의 이미지" },
+  { id: "11", title: "열린 들판", artist: "오늘의 이미지" },
+  { id: "13", title: "잔잔한 해변", artist: "오늘의 이미지" },
+  { id: "16", title: "산의 빛", artist: "오늘의 이미지" },
+  { id: "18", title: "부드러운 지평선", artist: "오늘의 이미지" },
+  { id: "1015", title: "아침 능선", artist: "오늘의 이미지" },
+  { id: "1018", title: "느린 계곡", artist: "오늘의 이미지" },
+  { id: "1043", title: "맑은 공기", artist: "오늘의 이미지" },
+];
+
+let activeArtIndex = -1;
 
 const els = {
   apiStatus: document.querySelector("#apiStatus"),
@@ -21,6 +34,9 @@ const els = {
   marketList: document.querySelector("#marketList"),
   marketTemplate: document.querySelector("#marketTemplate"),
   marketUpdatedText: document.querySelector("#marketUpdatedText"),
+  artImage: document.querySelector("#artImage"),
+  artTitle: document.querySelector("#artTitle"),
+  artArtist: document.querySelector("#artArtist"),
 };
 
 function formatDateLabel(value) {
@@ -200,9 +216,45 @@ function renderMarkets(items, updatedAt, errorText) {
   }
 }
 
+function refreshArt() {
+  if (!els.artImage) {
+    return;
+  }
+
+  let nextIndex = activeArtIndex;
+  while (nextIndex === activeArtIndex && ART_PHOTOS.length > 1) {
+    nextIndex = Math.floor(Math.random() * ART_PHOTOS.length);
+  }
+  activeArtIndex = nextIndex;
+
+  const photo = ART_PHOTOS[activeArtIndex];
+  const width = Math.min(1800, Math.max(900, Math.round(window.innerWidth * window.devicePixelRatio)));
+  const height = Math.min(900, Math.max(420, Math.round(window.innerHeight * 0.32)));
+  els.artImage.classList.add("is-loading");
+  els.artImage.src = `https://picsum.photos/id/${photo.id}/${width}/${height}.jpg`;
+  if (els.artTitle) {
+    els.artTitle.textContent = photo.title;
+  }
+  if (els.artArtist) {
+    els.artArtist.textContent = photo.artist;
+  }
+}
+
+if (els.artImage) {
+  els.artImage.addEventListener("load", () => {
+    els.artImage.classList.remove("is-loading", "is-hidden");
+  });
+  els.artImage.addEventListener("error", () => {
+    els.artImage.classList.add("is-hidden");
+    els.artImage.classList.remove("is-loading");
+  });
+}
+
 loadSchedules();
 loadNews();
 loadMarkets();
+refreshArt();
 setInterval(loadSchedules, SCHEDULE_REFRESH_MS);
 setInterval(loadNews, NEWS_REFRESH_MS);
 setInterval(loadMarkets, MARKET_REFRESH_MS);
+setInterval(refreshArt, ART_REFRESH_MS);
