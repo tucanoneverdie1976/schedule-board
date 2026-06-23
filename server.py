@@ -61,6 +61,12 @@ WEATHER_API_URL = os.environ.get(
 )
 WEATHER_LOCK = threading.Lock()
 WEATHER_CACHE: dict[str, Any] = {"items": [], "fetched_at": 0.0, "updated_at": "", "error": ""}
+DOG_IMAGE_API_URL = os.environ.get(
+    "DOG_IMAGE_API_URL",
+    "https://dog.ceo/api/breeds/image/random",
+)
+DOG_IMAGE_FETCH_TIMEOUT_SECONDS = float(os.environ.get("DOG_IMAGE_FETCH_TIMEOUT_SECONDS", "8"))
+DOG_IMAGE_SOURCE = os.environ.get("DOG_IMAGE_SOURCE", "Dog CEO Dog API")
 INDEX_NAMES = {
     "KOSPI": "KOSPI",
     "KOSDAQ": "KOSDAQ",
@@ -272,6 +278,42 @@ def read_json_url(url: str, referer: str = "", timeout: float = MARKET_FETCH_TIM
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         charset = resp.headers.get_content_charset() or "utf-8"
         return json.loads(resp.read().decode(charset, errors="replace"))
+
+
+def dog_breed_from_url(url: str) -> str:
+    marker = "/breeds/"
+    if marker not in url:
+        return ""
+    breed_part = url.split(marker, 1)[1].split("/", 1)[0]
+    words = [word for word in re.split(r"[-_]+", breed_part) if word]
+    return " ".join(word.capitalize() for word in words)
+
+
+def fetch_dog_image() -> dict[str, Any]:
+    try:
+        payload = read_json_url(DOG_IMAGE_API_URL, timeout=DOG_IMAGE_FETCH_TIMEOUT_SECONDS)
+        image_url = str(payload.get("message") or "").strip()
+        status = str(payload.get("status") or "").strip().lower()
+        if status != "success" or not image_url:
+            raise ValueError("Dog image feed returned no image URL")
+        breed = dog_breed_from_url(image_url)
+        return {
+            "item": {
+                "title": breed or "Random Dog",
+                "artist": "",
+                "source": DOG_IMAGE_SOURCE,
+                "url": image_url,
+            },
+            "updated_at": now_iso(),
+            "cached": False,
+        }
+    except (OSError, ValueError, urllib.error.URLError) as exc:
+        return {
+            "item": None,
+            "updated_at": "",
+            "cached": False,
+            "error": str(exc),
+        }
 
 
 def format_weather_number(value: Any, places: int = 1) -> str:
@@ -899,6 +941,9 @@ class ScheduleHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/markets":
             self.send_json(fetch_market_items())
+            return
+        if parsed.path == "/api/dog-image":
+            self.send_json(fetch_dog_image())
             return
         self.send_error(404, "Not found")
 

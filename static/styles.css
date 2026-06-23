@@ -21,6 +21,7 @@
 html {
   height: 100%;
   min-height: 100%;
+  font-size: 130%;
   cursor: none !important;
 }
 
@@ -93,7 +94,7 @@ p {
 
 h1 {
   margin: 0;
-  font-size: clamp(1.75rem, 3vw, 2.45rem);
+  font-size: clamp(1.75rem, 3.9vw, 2.45rem);
   letter-spacing: 0;
 }
 
@@ -344,7 +345,7 @@ textarea:focus {
   height: 100%;
   display: block;
   object-fit: cover;
-  object-position: center;
+  object-position: center 35%;
   opacity: 1;
   filter: none;
   transition: opacity 0.45s ease;
@@ -509,9 +510,9 @@ textarea:focus {
 
 .market-card {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   min-height: 0;
-  padding: 13px 14px;
+  padding: 11px 13px;
   border: 1px solid var(--line);
   border-left: 5px solid var(--muted);
   border-radius: 8px;
@@ -574,9 +575,7 @@ textarea:focus {
 }
 
 .market-meta {
-  color: var(--muted);
-  font-size: 0.76rem;
-  font-weight: 700;
+  display: none;
 }
 
 .market-empty {
