@@ -35,7 +35,7 @@ NEWS_FEED_URL = os.environ.get(
     "NEWS_FEED_URL",
     "https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko",
 )
-NEWS_DISPLAY_LIMIT = int(os.environ.get("NEWS_DISPLAY_LIMIT", "3"))
+NEWS_DISPLAY_LIMIT = int(os.environ.get("NEWS_DISPLAY_LIMIT", "2"))
 NEWS_POOL_LIMIT = int(os.environ.get("NEWS_POOL_LIMIT", "20"))
 NEWS_CACHE_SECONDS = int(os.environ.get("NEWS_CACHE_SECONDS", "60"))
 NEWS_FETCH_TIMEOUT_SECONDS = float(os.environ.get("NEWS_FETCH_TIMEOUT_SECONDS", "8"))
@@ -72,6 +72,7 @@ INDEX_NAMES = {
     "KOSDAQ": "KOSDAQ",
     "KPI200": "KOSPI 200",
 }
+MARKET_DISPLAY_CODES = {"KOSPI", "M04020000"}
 
 ADD_ACTION_WORDS = (
     "예약해줘",
@@ -572,6 +573,7 @@ def fetch_market_items() -> dict[str, Any]:
             items.extend(fetcher())
         except (OSError, urllib.error.URLError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
             errors.append(f"{source_name}: {exc}")
+    items = [item for item in items if item.get("code") in MARKET_DISPLAY_CODES]
 
     if items:
         updated_at = now_iso()
